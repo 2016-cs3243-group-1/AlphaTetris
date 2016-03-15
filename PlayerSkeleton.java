@@ -85,8 +85,8 @@ public class PlayerSkeleton {
 		for(int i = 0; i < pWidth[nextPiece][orient]; i++) {
 			//from bottom to top of brick
 			int colHoles = 0;
-			for(int h = height+pBottom[nextPiece][orient][i]; h >= 0; h--) {
-				if (colHoles > 0 && field[h][i+slot] != 0) break;
+			for(int h = height+pBottom[nextPiece][orient][i] - 1; h >= 0; h--) {
+				if (field[h][i+slot] != 0) break;
 				if (field[h][i+slot] == 0) {
 					colHoles++;
 				}
