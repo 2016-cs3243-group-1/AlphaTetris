@@ -87,9 +87,7 @@ public class PlayerSkeleton {
 			int colHoles = 0;
 			for(int h = height+pBottom[nextPiece][orient][i] - 1; h >= 0; h--) {
 				if (field[h][i+slot] != 0) break;
-				if (field[h][i+slot] == 0) {
-					colHoles++;
-				}
+				colHoles++;
 			}
 			results[3] += colHoles;
 		}
