@@ -39,10 +39,10 @@ public class PlayerSkeleton {
 		int turn = s.getTurnNumber() + 1;
 		int[] top = new int[s.getTop().length];
 		System.arraycopy(s.getTop(), 0, top, 0, s.getTop().length);
-		int[][][] pBottom = s.getpBottom();
-		int[][][] pTop = s.getpTop();
-		int[][] pHeight = s.getpHeight();
-		int[][] pWidth = s.getpWidth();
+		int[][][] pBottom = State.getpBottom();
+		int[][][] pTop = State.getpTop();
+		int[][] pHeight = State.getpHeight();
+		int[][] pWidth = State.getpWidth();
 
 		//height if the first column makes contact
 		int height = top[slot]-pBottom[nextPiece][orient][0];
