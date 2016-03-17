@@ -18,9 +18,12 @@ class AlphaTetris():
     def __init__(self):
         self.populationCount = 4    # Must be even
         self.mutationRate = 0.05    # [0, 1]
-        self.start([self.generateWeights() for i in range(self.populationCount)])
+        self.generation = 1
+        self.start([AlphaTetris.defaultWeights] + [self.generateWeights() for i in range(self.populationCount - 1)])
 
     def start(self, populationWeights):
+        print("Generation", self.generation)
+
         choices = []
         for weights in populationWeights:
             print("Weights used:", weights)
@@ -32,6 +35,7 @@ class AlphaTetris():
         self.crossover(parents)
         self.mutate(parents)
 
+        self.generation += 1
         self.start(parents)
 
     def runGame(self, weights):
