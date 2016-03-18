@@ -40,7 +40,7 @@ class AlphaTetris():
 
     def runGame(self, weights):
         command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
-        process = subprocess.run(command, shell=True, stdout=subprocess.PIPE)
+        process = subprocess.run(command, stdout=subprocess.PIPE)
         return process.stdout.decode("utf-8").split(" ")
 
 
