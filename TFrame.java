@@ -24,18 +24,18 @@ public class TFrame extends JFrame implements KeyListener{
 	
 	//constructor
 	public TFrame (State s){
-		this.s = s;
-		s.label = label;
-		setResizable(false);
-		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);            // closes all windows when this is closed
-		setTitle("Tetris BKW");
-		setContentPane(label.draw);
-		pack();
-		label.BORDER = .05;
-		label.setXscale(0, State.COLS);
-		label.setYscale(0, State.ROWS+5);
-		this.addKeyListener(this);  //may be unnecessary (not certain)
-		setVisible(true);
+//		this.s = s;
+//		s.label = label;
+//		setResizable(false);
+//		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);            // closes all windows when this is closed
+//		setTitle("Tetris BKW");
+//		setContentPane(label.draw);
+//		pack();
+//		label.BORDER = .05;
+//		label.setXscale(0, State.COLS);
+//		label.setYscale(0, State.ROWS+5);
+//		this.addKeyListener(this);  //may be unnecessary (not certain)
+//		setVisible(true);
 	}
 	
 	//switches which state is attached to this TFrame
@@ -145,8 +145,8 @@ public class TFrame extends JFrame implements KeyListener{
 	public static void main(String[] args) {
 		State s = new State();
 		TFrame t = new TFrame(s);
-		s.draw();
-		s.drawNext(0,0);
+//		s.draw();
+//		s.drawNext(0,0);
 		//t.save("picture.png");
 		
 	}

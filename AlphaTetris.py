@@ -8,14 +8,21 @@ import operator
 from math import floor
 from multiprocessing import Pool
 
+numAttempts = 1
+
 # have to keep the rungame process in a method outside the class due to how multiprocessing pool works
 def runGame(weights):
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE)
-    numRowsCleared, numTurns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
-    return (int(numRowsCleared), numTurns)
+    totalRowsCleared = 0
+    totalTurns = 0
+    for attempt in range(numAttempts):
+        process = subprocess.Popen(command, stdout=subprocess.PIPE)
+        numRowsCleared, numTurns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
+        totalRowsCleared += int(numRowsCleared)
+        totalTurns += int(numTurns)
+    return (totalRowsCleared // numAttempts, totalTurns // numAttempts)
 
 class AlphaTetris():
     """Genetic Algorithm to optimise weights for heuristics in PlayerSkeleton.java"""
@@ -29,15 +36,26 @@ class AlphaTetris():
         0.760666 # Num of completed rows
     ]
 
+    # True if weight should be positive
+    shouldWeightBePositive = [
+        False,
+        False,
+        False,
+        False,
+        True
+    ]
+
     def __init__(self):
         self.pool = Pool(AlphaTetris.pool_size)
-        self.populationCount = 32    # Must be even
+        self.populationCount = 64    # Must be even
+        self.chooseParentsRate = 0.1
+        self.regenParentsRate = 0.05
         self.mutationRate = 0.05    # [0, 1]
         self.generation = 1
-        self.start([AlphaTetris.defaultWeights] + [self.generateWeights(AlphaTetris.pool_size) for i in range(self.populationCount - 1)])
+        self.start([AlphaTetris.defaultWeights] + [self.generateWeights() for i in range(self.populationCount - 1)])
 
     def start(self, populationWeights):
-        print("Generation", self.generation)
+        print("Generation " + str(self.generation))
 
         choices = []
         pool = Pool(self.pool_size)
@@ -48,30 +66,42 @@ class AlphaTetris():
             pool.join()
             pool.terminate()
         else:
+            totalRowsCleared = 0
             for (numRowsCleared, numTurns), weights in zip(scores, populationWeights):
-                print("Weights used:", weights)
-                print("Rows cleared:", numRowsCleared, "Number of turns:", numTurns)
-                choices.append((weights, numRowsCleared))
+                print("Rows cleared: " + str(numRowsCleared) + "\tNumber of turns: " + str(numTurns) + "\tWeights used: " + str(weights))
+                totalRowsCleared += numRowsCleared
+                choices.append((weights, numRowsCleared + numTurns))
 
             parents = self.selectParents(choices)
             self.crossover(parents)
             self.mutate(parents)
 
             self.generation += 1
+            print("Average number of rows cleared: " + str(totalRowsCleared // self.populationCount))
             self.start(parents)
 
     #### Initial population
-    def generateWeights(self, seed):
-        return [self.generateWeight(i) for i in AlphaTetris.defaultWeights]
+    def generateWeights(self, delta=0.01):
+        return [self.generateWeight(idx, weight, delta) for idx, weight in enumerate(AlphaTetris.defaultWeights)]
 
-    def generateWeight(self, origin):
-        return origin + random.uniform(-0.1, 0.1)
+    def generateWeight(self, baseWeightIndex, baseWeight, delta=0.01):
+        # isPositive = AlphaTetris.shouldWeightBePositive[baseWeightIndex]
 
+        # weight = random.gauss(baseWeight, min(0.3, (1 - abs(baseWeight))/2)) # TODO change standard deviation
+        # if isPositive:   # Weight should be positive
+        #     return abs(weight)
+        # else:
+        #     return -abs(weight)
+        return baseWeight + random.uniform(-delta, delta)
 
 
     #### Selection
     def selectParents(self, choices):
-        return [self.selectParent(choices) for i in range(self.populationCount)]
+        choices.sort(key=lambda choice: choice[1], reverse=True)
+        print([choice[1] for choice in choices])
+        parents = [self.selectParent(choices[:int(self.chooseParentsRate * self.populationCount)]) for i in range(self.populationCount)]
+        numParentsToRegen = int(self.regenParentsRate * self.populationCount)
+        return [parent[0] for parent in parents[:-numParentsToRegen]] + [self.generateWeights(0.1) for i in range(numParentsToRegen)]
 
     def selectParent(self, choices):
         total = sum(score for weights, score in choices)
@@ -80,7 +110,7 @@ class AlphaTetris():
 
         for weights, score in choices:
             if currentSum + score >= randomVar:
-                return weights
+                return (weights, score)
             currentSum += score
 
         assert False, "Shouldn't get here"
@@ -99,7 +129,7 @@ class AlphaTetris():
         for parent in parents:
             if random.uniform(0, 1) < self.mutationRate:
                 mutation_target = random.randint(0, len(AlphaTetris.defaultWeights) - 1)
-                parent[mutation_target] = self.generateWeight(parent[mutation_target])
+                parent[mutation_target] = self.generateWeight(mutation_target, parent[mutation_target])
 
 
 

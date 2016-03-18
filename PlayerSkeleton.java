@@ -137,17 +137,17 @@ public class PlayerSkeleton {
 		}
 
 		State s = new State();
-		new TFrame(s);
+//		new TFrame(s);
 		PlayerSkeleton p = new PlayerSkeleton();
 		while(!s.hasLost()) {
 			s.makeMove(p.pickMove(s,s.legalMoves()));
-			s.draw();
-			s.drawNext(0,0);
-			try {
-				Thread.sleep(5);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+//			s.draw();
+//			s.drawNext(0,0);
+//			try {
+//				Thread.sleep(5);
+//			} catch (InterruptedException e) {
+//				e.printStackTrace();
+//			}
 		}
 		// Prints the number of rows cleared and the turn number
 		System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
