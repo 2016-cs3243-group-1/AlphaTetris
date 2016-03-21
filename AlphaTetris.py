@@ -6,124 +6,156 @@ import random
 import signal
 import logging
 import time
-from math import floor
-from multiprocessing import Pool
+import threading
+from collections import Counter
+from fractions import Fraction
 
-numAttempts = 5
+# python 2.x/3.x specific checks
+try:
+    from Queue import Queue
+except ImportError:
+    from queue import Queue
 
-# have to keep the rungame process in a method outside the class due to how multiprocessing pool works
-def runGame(weights):
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+try:
+    xrange
+except NameError:
+    xrange = range
 
-    command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
-    totalRowsCleared = 0
-    totalTurns = 0
-    for attempt in range(numAttempts):
+class GameWorker(threading.Thread):
+    """
+    Worker class for handling the calling of the java tetris game.
+    Consumes work from the queue when available and returns
+    the result through a callback method.
+    """
+
+    def __init__(self, lock, game_queue, running, callback):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.lock = lock
+        self.game_queue = game_queue
+        self.running = running
+        self.callback = callback
+
+    def _run_game(self, weights):
+        command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
         process = subprocess.Popen(command, stdout=subprocess.PIPE)
-        numRowsCleared, numTurns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
-        totalRowsCleared += int(numRowsCleared)
-        totalTurns += int(numTurns)
-    return (totalRowsCleared // numAttempts, totalTurns // numAttempts)
+        rows_cleared, turns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
+        return int(rows_cleared)
+
+    def run(self):
+        while self.running:
+            idx, weights = self.game_queue.get()
+            rows_cleared = self._run_game(weights)
+            with self.lock:
+                self.callback(idx, rows_cleared)
+            self.game_queue.task_done()
 
 class AlphaTetris():
     """Genetic Algorithm to optimise weights for heuristics in PlayerSkeleton.java"""
 
-    pool_size = 8
-    defaultWeights = [
-        -0.510066, # Aggregate column heights
-        -0.184483, # Bumpiness
-        0, # Max height
-        -0.6, # Num of holes created
-        0.760666 # Num of completed rows
-    ]
+    workers = 8 #threads
+    population_size = 500 # number of agents
+    games = 50 # no of games per agent
+    selection = 0.1 # random pool size to select best parents from
+    culling = 0.3 # % of population to cull and replace every generation
+    mutation_rate = 0.05 # mutation rate
+    mutation_delta = 0.2 # % range of mutation adjustment
 
-    # True if weight should be positive
-    shouldWeightBePositive = [
-        False,
-        False,
-        False,
-        False,
-        True
-    ]
+    num_weights = 5
+
+    logging.basicConfig(filename='%s.log' % time.ctime().replace(" ","_").replace(":","-"), level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler())
 
     def __init__(self):
-        logging.basicConfig(filename='%s.log' % time.ctime().replace(" ","_").replace(":","-"), level=logging.INFO)
-        logging.getLogger().addHandler(logging.StreamHandler())
-        self.pool = Pool(AlphaTetris.pool_size)
-        self.populationCount = 400    # Must be even
-        self.chooseParentsRate = 0.1
-        self.regenParentsRate = 0.05
-        self.mutationRate = 0.25    # [0, 1]
-        self.generation = 1
-        self.start([AlphaTetris.defaultWeights] + [self.generateWeights() for i in range(self.populationCount - 1)])
+        self.queue = Queue()
+        self.running = True
+        self.lock = threading.Lock()
+        self._spawn_workers()
+        self.population = self._seed_population()
 
-    def start(self, populationWeights):
-        logging.info("Generation " + str(self.generation))
+    def _worker_callback(self, idx, rows_cleared):
+        self._results[idx] += rows_cleared
+        self._total_rows_cleared += rows_cleared
 
-        choices = []
+    def _spawn_workers(self):
+        """spawns the threaded worker class instances"""
+        for x in xrange(self.workers):
+            worker = GameWorker(self.lock, self.queue, self.running, self._worker_callback)
+            worker.start()
 
-        try:
-            scores = self.pool.map(runGame, populationWeights)
-        except KeyboardInterrupt as ki:
-            self.pool.join()
-            self.pool.terminate()
+    def _queue_games(self, population):
+        """puts the work into the queue for the worker instances to consume"""
+        [map(self.queue.put, enumerate(population)) for game in xrange(self.games)]
+
+    def _normalize(self, weights):
+        """normalize values to 1. if all weights are 0 return 0.5 (for crossover average weighted fitness)"""
+        sum_weights = sum(weights)
+        return map(lambda w: sum_weights > 0 and (float(w) / sum_weights) or 0.5, weights)
+
+    def _generate_weights(self, result, remainder=1, n=1):
+        """generates a random vector of length num_weights that sums to 1.0"""
+        if n == self.num_weights:
+            result.append(remainder)
+            return result
         else:
-            totalRowsCleared = 0
-            for (numRowsCleared, numTurns), weights in zip(scores, populationWeights):
-                #print("Rows cleared: " + str(numRowsCleared) + "\tNumber of turns: " + str(numTurns) + "\tWeights used: " + str(weights))
-                totalRowsCleared += numRowsCleared
-                choices.append((weights, numRowsCleared))
+            weight = random.uniform(0, remainder)
+            result.append(weight)
+            return self._generate_weights(result, remainder-weight, n+1)
 
-            parents = self.selectParents(choices)
-            children = self.crossover(parents)
-            self.mutate(children)
+    def _seed_population(self):
+        """generates the initial population"""
+        return [self._generate_weights([]) for x in xrange(self.population_size)]
 
-            self.generation += 1
-            logging.info("Average number of rows cleared: " + str(totalRowsCleared // self.populationCount))
-            self.start(parents + children)
+    def _select_parents(self):
+        """tournament selection"""
+        random_selection = random.sample(xrange(self.population_size), int(self.population_size * 0.1))
+        return sorted(random_selection, key=self._results.get, reverse=True)[:2]
 
-    #### Initial population
-    def generateWeights(self, delta=0.01):
-        return [self.generateWeight(idx, weight, delta) for idx, weight in enumerate(AlphaTetris.defaultWeights)]
+    def _crossover(self, parent1, parent2):
+        """average weighted crossover"""
+        fitness1, fitness2 = self._normalize([self._results[parent1], self._results[parent2]]) 
+        return [(fitness1 * p1) + (fitness2 * p2) for p1, p2 in zip(self.population[parent1], self.population[parent2])]
 
-    def generateWeight(self, baseWeightIndex, baseWeight, delta=0.1):
-        # isPositive = AlphaTetris.shouldWeightBePositive[baseWeightIndex]
+    def _mutate(self, offspring):
+        """mutate randomly selected weight by delta and normalize"""
+        weight_idx = random.choice(xrange(len(offspring)))
+        mutation_modifier = random.uniform(-self.mutation_delta, self.mutation_delta)
+        offspring[weight_idx] *= mutation_modifier
+        return self._normalize(offspring)
 
-        # weight = random.gauss(baseWeight, min(0.3, (1 - abs(baseWeight))/2)) # TODO change standard deviation
-        # if isPositive:   # Weight should be positive
-        #     return abs(weight)
-        # else:
-        #     return -abs(weight)
-        return baseWeight + random.uniform(-delta, delta)
+    def _create_offspring(self):
+        """create an offspring using tournament selection and average weighted crossover"""
+        parents = self._select_parents()
+        offspring = self._crossover(*parents)
+        if (random.uniform(0, 1) < self.mutation_rate):
+            self._mutate(offspring)
+        return offspring
+        
+    def _next_generation(self, ranks):
+        """cull the weakest population and replace them with new offspring"""
+        replace = ranks[:int(self.population_size * self.culling)]
+        for idx in replace:
+            self.population[idx] = self._create_offspring()
 
-
-    #### Selection
-    def selectParents(self, choices):
-        parentsNum = int(self.chooseParentsRate * self.populationCount)
-        choices.sort(key=lambda choice: choice[1], reverse=True)
-        parents = [choice[0] for choice in choices[:parentsNum]]
-        for choice in choices[:5]:
-            logging.info("Score: %s, Weights: %s" % (choice[1], choice[0]))
-        return parents
-
-    #### Crossover
-    def crossover(self, parents):
-        childrenNum = self.populationCount - len(parents)
-        children = []
-        for i in range(childrenNum):
-            parent_weights = zip(*random.sample(parents, 2))
-            children.append([random.choice(weight) for weight in parent_weights])
-        return children
+    def _report(self, ranks):
+        top5 = ranks[self.population_size-5:]
+        for idx in top5[::-1]:
+            logging.info("Rows Cleared: %s, Weights: %s" % (self._results[idx], self.population[idx]))
+        logging.info("Total Rows Cleared: %s" % self._total_rows_cleared)
 
 
-    #### Mutation
-    def mutate(self, parents):
-        for parent in parents:
-            if random.uniform(0, 1) < self.mutationRate:
-                mutation_target = random.randint(0, len(AlphaTetris.defaultWeights) - 1)
-                parent[mutation_target] = self.generateWeight(mutation_target, parent[mutation_target])
+    def optimize_weights(self, generations):
+        for gen in xrange(generations):
+            logging.info(" Generation: %s" % gen)
+            self._results = Counter()
+            self._total_rows_cleared = 0
+            self._queue_games(self.population)
+            self.queue.join()
 
-
+            ranks = sorted(xrange(self.population_size), key=self._results.get)
+            self._report(ranks)
+            self._next_generation(ranks)
 
 if __name__ == '__main__':
-    AlphaTetris()
+    ap = AlphaTetris()
+    ap.optimize_weights(100) 
