@@ -43,7 +43,7 @@ class GameWorker(threading.Thread):
         return int(rows_cleared)
 
     def run(self):
-        while self.running:
+        while self.running.is_set():
             idx, weights = self.game_queue.get()
             rows_cleared = self._run_game(weights)
             with self.lock:
@@ -53,9 +53,9 @@ class GameWorker(threading.Thread):
 class AlphaTetris():
     """Genetic Algorithm to optimise weights for heuristics in PlayerSkeleton.java"""
 
-    workers = 8 #threads
-    population_size = 500 # number of agents
-    games = 50 # no of games per agent
+    workers_pool = 8 #threads
+    population_size = 100 # number of agents
+    games = 5 # no of games per agent
     selection = 0.1 # random pool size to select best parents from
     culling = 0.3 # % of population to cull and replace every generation
     mutation_rate = 0.05 # mutation rate
@@ -68,8 +68,9 @@ class AlphaTetris():
 
     def __init__(self):
         self.queue = Queue()
-        self.running = True
+        self.running = threading.Event()
         self.lock = threading.Lock()
+        self.workers = []
         self._spawn_workers()
         self.population = self._seed_population()
 
@@ -79,9 +80,11 @@ class AlphaTetris():
 
     def _spawn_workers(self):
         """spawns the threaded worker class instances"""
-        for x in xrange(self.workers):
+        self.running.set()
+        for x in xrange(self.workers_pool):
             worker = GameWorker(self.lock, self.queue, self.running, self._worker_callback)
             worker.start()
+            self.workers.append(worker)
 
     def _queue_games(self, population):
         """puts the work into the queue for the worker instances to consume"""
@@ -89,22 +92,17 @@ class AlphaTetris():
 
     def _normalize(self, weights):
         """normalize values to 1. if all weights are 0 return 0.5 (for crossover average weighted fitness)"""
-        sum_weights = sum(weights)
+        sum_weights = sum(map(abs, weights))
         return map(lambda w: sum_weights > 0 and (float(w) / sum_weights) or 0.5, weights)
 
-    def _generate_weights(self, result, remainder=1, n=1):
+    def _generate_weights(self):
         """generates a random vector of length num_weights that sums to 1.0"""
-        if n == self.num_weights:
-            result.append(remainder)
-            return result
-        else:
-            weight = random.uniform(0, remainder)
-            result.append(weight)
-            return self._generate_weights(result, remainder-weight, n+1)
+        weights = [random.uniform(-1, 1) for x in xrange(self.num_weights)]
+        return self._normalize(weights)
 
     def _seed_population(self):
         """generates the initial population"""
-        return [self._generate_weights([]) for x in xrange(self.population_size)]
+        return [self._generate_weights() for x in xrange(self.population_size)]
 
     def _select_parents(self):
         """tournament selection"""
@@ -140,9 +138,8 @@ class AlphaTetris():
     def _report(self, ranks):
         top5 = ranks[self.population_size-5:]
         for idx in top5[::-1]:
-            logging.info("Rows Cleared: %s, Weights: %s" % (self._results[idx], self.population[idx]))
-        logging.info("Total Rows Cleared: %s" % self._total_rows_cleared)
-
+            logging.info("Average Rows Cleared: %.1f, Weights: %s" % (self._results[idx] / float(self.games), self.population[idx]))
+        logging.info("Population Average Rows Cleared: %.1f" % (self._total_rows_cleared / float(self.population_size * self.games)))
 
     def optimize_weights(self, generations):
         for gen in xrange(generations):
