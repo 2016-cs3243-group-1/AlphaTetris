@@ -54,8 +54,8 @@ class AlphaTetris():
     """Genetic Algorithm to optimise weights for heuristics in PlayerSkeleton.java"""
 
     workers_pool = 8 #threads
-    population_size = 100 # number of agents
-    games = 5 # no of games per agent
+    population_size = 500 # number of agents
+    games = 10 # no of games per agent
     selection = 0.1 # random pool size to select best parents from
     culling = 0.3 # % of population to cull and replace every generation
     mutation_rate = 0.05 # mutation rate
@@ -117,7 +117,7 @@ class AlphaTetris():
     def _mutate(self, offspring):
         """mutate randomly selected weight by delta and normalize"""
         weight_idx = random.choice(xrange(len(offspring)))
-        mutation_modifier = random.uniform(-self.mutation_delta, self.mutation_delta)
+        mutation_modifier = 1 + random.uniform(-self.mutation_delta, self.mutation_delta)
         offspring[weight_idx] *= mutation_modifier
         return self._normalize(offspring)
 
