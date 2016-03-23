@@ -178,6 +178,16 @@ public class PlayerSkeleton {
 
 		// Prints the number of rows cleared and the turn number
 		System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
+
+
+
+		// DEBUG AREA
+		GeneticAlgorithm ga = new GeneticAlgorithm();
+		for (double weight : ga.generateWeights()) {
+			System.out.println(weight);
+		}
+
+
 		System.exit(0);
 	}
 }
@@ -209,9 +219,39 @@ class GeneticAlgorithm {
 
 	public ArrayList<double[]> seedPopulation() {
 		ArrayList<double[]> populations = new ArrayList<double[]>();
+		for (int i = 0; i < POPULATION_SIZE; i++) {
+			populations.add(generateWeights());
+		}
+		return populations;
+	}
 
+	public double[] generateWeights() {
+		int RANGE_MIN = -1;
+		int RANGE_MAX = 1;
+		Random random = new Random();
+		double[] populationWeights = new double[NUM_WEIGHTS];
+		for (int i = 0; i < NUM_WEIGHTS; i++) {
+			populationWeights[i] = RANGE_MIN + (RANGE_MAX - RANGE_MIN) * random.nextDouble();
+		}
+		return normaliseWeights(populationWeights);
+	}
 
-		return null;
+	public double[] normaliseWeights(double[] weights) {
+		// Modify the array in place then return it
+		double sumWeights = 0;
+		for (int i = 0; i < weights.length; i++) {
+			sumWeights += Math.abs(weights[i]);
+		}
+		if (sumWeights > 0) {
+			for (int i = 0; i < weights.length; i++) {
+				weights[i] = (weights[i] / sumWeights);
+			}
+		} else {
+			for (int i = 0; i < weights.length; i++) {
+				weights[i] = 0.5;
+			}
+		}
+		return weights;
 	}
 }
 
