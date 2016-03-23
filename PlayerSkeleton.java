@@ -1,3 +1,7 @@
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 public class PlayerSkeleton {
 	private static double[] DEFAULT_WEIGHTS = {
@@ -119,6 +123,36 @@ public class PlayerSkeleton {
 		return results;
 	}
 
+	public double[] run(String[] args) {
+		double[] results = new double[2];
+
+		// Init weights
+		if (args.length != DEFAULT_WEIGHTS.length) {
+			weights = DEFAULT_WEIGHTS;
+		} else {
+			weights = new double[DEFAULT_WEIGHTS.length];
+			for(int i = 0; i < DEFAULT_WEIGHTS.length; i++) {
+				try {
+					weights[i] = Double.parseDouble(args[i]);
+				} catch (NumberFormatException e) {
+					weights = DEFAULT_WEIGHTS;
+					break;
+				}
+			}
+		}
+
+		State s = new State();
+		PlayerSkeleton p = new PlayerSkeleton();
+		while(!s.hasLost()) {
+			s.makeMove(p.pickMove(s,s.legalMoves()));
+		}
+
+		// Returns the number of rows cleared and the turn number in a tuple
+		results[0] = s.getRowsCleared();
+		results[1] = s.getTurnNumber();
+		return results;
+	}
+
 	// Modified main method
 	public static void main(String[] args) {
 		// Init weights
@@ -137,39 +171,48 @@ public class PlayerSkeleton {
 		}
 
 		State s = new State();
-//		new TFrame(s);
 		PlayerSkeleton p = new PlayerSkeleton();
 		while(!s.hasLost()) {
 			s.makeMove(p.pickMove(s,s.legalMoves()));
-//			s.draw();
-//			s.drawNext(0,0);
-//			try {
-//				Thread.sleep(5);
-//			} catch (InterruptedException e) {
-//				e.printStackTrace();
-//			}
 		}
+
 		// Prints the number of rows cleared and the turn number
 		System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
 		System.exit(0);
 	}
-	
-	// Default main method
-	/*
-	public static void main(String[] args) {
-		State s = new State();
-		new TFrame(s);
-		PlayerSkeleton p = new PlayerSkeleton();
-		while(!s.hasLost()) {
-			s.makeMove(p.pickMove(s,s.legalMoves()));
-			s.draw();
-			s.drawNext(0,0);
-			try {
-				Thread.sleep(300);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		System.out.println("You have completed "+s.getRowsCleared()+" rows.");
-	}*/
 }
+
+class GameWorker {
+
+}
+
+class GeneticAlgorithm {
+	private int WORKERS_POOL = 8;
+	private int POPULATION_SIZE = 500;
+	private int GAMES = 10;
+	private double SELECTION = 0.1;
+	private double CULLING = 0.1;
+	private double MUTATION_RATE = 0.1;
+	private double MUTATION_DELTA = 0.1;
+
+	private int NUM_WEIGHTS = 5;
+
+	public GeneticAlgorithm() {
+		BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(GAMES);
+		spawnWorkers();
+		ArrayList<double[]> population = seedPopulation();
+	}
+
+	public void spawnWorkers() {
+
+	}
+
+	public ArrayList<double[]> seedPopulation() {
+		ArrayList<double[]> populations = new ArrayList<double[]>();
+
+
+		return null;
+	}
+}
+
+
