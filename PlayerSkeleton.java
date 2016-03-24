@@ -1,3 +1,4 @@
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -128,6 +129,9 @@ public class PlayerSkeleton {
 		return results;
 	}
 
+	// ==========================================================
+	// Methods that GeneticAlgorithm calls from PlayerSkeleton
+	// ==========================================================
 	public double[] runAverage(double[] args, int numGames) {
 		double[] results = new double[2];
 
@@ -173,7 +177,9 @@ public class PlayerSkeleton {
 		return results;
 	}
 
+	// ==============================================
 	// Modified main method
+	// ==============================================
 	public static void main(String[] args) {
 		// Init weights
 		if (args.length != DEFAULT_WEIGHTS.length) {
@@ -211,6 +217,10 @@ public class PlayerSkeleton {
 }
 
 class GeneticAlgorithm {
+
+	// ==============================================
+	// Default values
+	// ==============================================
 	private int WORKERS_POOL = 8; // threading stuff
 	private int POPULATION_SIZE = 500; // number of agents
 	private int GAMES = 10; // number of games each agent plays
@@ -225,6 +235,9 @@ class GeneticAlgorithm {
 
 	ArrayList<double[]> population = seedPopulation();
 
+	// ==============================================
+	// Constructor
+	// ==============================================
 	public GeneticAlgorithm() {
 		BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(GAMES);
 		// Concurrency not yet implemented
@@ -232,16 +245,9 @@ class GeneticAlgorithm {
 		ArrayList<double[]> population = seedPopulation();
 	}
 
-	public void nextGeneration() {
-
-	}
-
-	public void spawnWorkers() {
-		for (int i = 0; i < WORKERS_POOL; i++) {
-			System.out.println("no idea what to do here :/");
-		}
-	}
-
+	// ==============================================
+	// Driver methods
+	// ==============================================
 	public void optimizeWeights(int generations) {
 		// Concurrency not yet implemented
 		for (int i = 0; i < generations; i++) {
@@ -277,23 +283,10 @@ class GeneticAlgorithm {
 		}
 	}
 
-	public void printResults(ArrayList<ArrayList<double[]>> ranks) {
-		for (ArrayList<double[]> indiv : ranks) {
-			for (double[] e : indiv) {
-				printArray(e);
-			}
-			System.out.println();
+	public void spawnWorkers() {
+		for (int i = 0; i < WORKERS_POOL; i++) {
+			System.out.println("no idea what to do here :/");
 		}
-	}
-
-	public void printArray(double[] array) {
-		for (int i = 0; i < array.length; i++) {
-			System.out.print(array[i] + " ");
-		}
-	}
-
-	public void report() {
-		LOGGER.info("stuff");
 	}
 
 	public ArrayList<double[]> seedPopulation() {
@@ -331,6 +324,60 @@ class GeneticAlgorithm {
 			}
 		}
 		return weights;
+	}
+
+	// ==============================================
+	// Biology related functions
+	// ==============================================
+	public void nextGeneration(ArrayList<ArrayList<double[]>> ranks) {
+		// Select the last 10 percentile and replace them
+		int numCulled = (int) CULLING * POPULATION_SIZE;
+		for (int i = 0; i < numCulled; i++) {
+			try {
+				ranks.set(i, createOffspring());
+			} catch (Exception e) {
+				e.printStackTrace(); // by right this shouldn't happen, but just to be safe
+			}
+		}
+
+	}
+
+	public void selectParents() {
+
+	}
+
+	public void crossover() {
+
+	}
+
+	public void mutate() {
+
+	}
+
+	public ArrayList<double[]> createOffspring() {
+		return null;
+	}
+
+	// ==============================================
+	// Debug methods
+	// ==============================================
+	public void printResults(ArrayList<ArrayList<double[]>> ranks) {
+		for (ArrayList<double[]> indiv : ranks) {
+			for (double[] e : indiv) {
+				printArray(e);
+			}
+			System.out.println();
+		}
+	}
+
+	public void printArray(double[] array) {
+		for (int i = 0; i < array.length; i++) {
+			System.out.print(array[i] + " ");
+		}
+	}
+
+	public void report() {
+		LOGGER.info("stuff");
 	}
 }
 
