@@ -216,7 +216,7 @@ public class PlayerSkeleton {
 	}
 }
 
-class Agent {
+class Agent implements Comparable<Agent> {
 	private double[] weights;
 	private double[] results;
 	private int numGames;
@@ -249,6 +249,25 @@ class Agent {
 			s.append(d + " ");
 		}
 		return s.toString();
+	}
+
+	@Override
+	// Sorted in increasing order number of rows cleared
+	// Number of turns survived is used as a tiebreaker
+	public int compareTo(Agent o) {
+		if (o.getResults()[0] > this.getResults()[0]) {
+			return -1;
+		} else if (o.getResults()[0] < this.getResults()[0]) {
+			return 1;
+		} else {
+			if (o.getResults()[1] > this.getResults()[1]) {
+				return -1;
+			} else if (o.getResults()[1] < this.getResults()[1]) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
 	}
 }
 
@@ -301,51 +320,14 @@ class GeneticAlgorithm {
 //				ranks.add(rank);
 //			}
 
-			ArrayList<Agent> ranks = new ArrayList<Agent>();
+			ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
 			for (int j = 0; j < POPULATION_SIZE; j++) {
 				Agent agent = new Agent(population.get(j), GAMES);
 				agent.runSimulation();
-				ranks.add(agent);
+				agentPopulation.add(agent);
 			}
-
-			// Sort them in increasing order number of rows cleared
-			// Number of turns survived is used as a tiebreaker
-			ranks.sort(new Comparator<Agent>() {
-				@Override
-				public int compare(Agent o1, Agent o2) {
-					if (o2.getResults()[0] > o1.getResults()[0]) {
-						return -1;
-					} else if (o2.getResults()[0] < o1.getResults()[0]) {
-						return 1;
-					} else {
-						if (o2.getResults()[1] > o1.getResults()[1]) {
-							return -1;
-						} else if (o2.getResults()[1] < o1.getResults()[1]){
-							return 1;
-						} else {
-							return 0;
-						}
-					}
-				}
-			});
-
-			printAgents(ranks);
-
-			// Sort the results
-//			ranks.sort(new Comparator<ArrayList<double[]>>() {
-//				@Override
-//				public int compare(ArrayList<double[]> o1, ArrayList<double[]> o2) {
-//					if (o2.get(0)[0] > o1.get(0)[0]) {
-//						return 1;
-//					} else if (o2.get(0)[0] < o1.get(0)[0]) {
-//						return -1;
-//					} else {
-//						return 0;
-//					}
-//				}
-//			});
-
-//			printResults(ranks);
+			Collections.sort(agentPopulation);
+			printAgents(agentPopulation);
 		}
 	}
 
