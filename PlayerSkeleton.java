@@ -280,9 +280,9 @@ class GeneticAlgorithm {
 	private int POPULATION_SIZE = 500; // number of agents
 	private int GAMES = 10; // number of games each agent plays
 	private double SELECTION = 0.1;
-	private double CULLING = 0.1;
-	private double MUTATION_RATE = 0.1;
-	private double MUTATION_DELTA = 0.1;
+	private double CULLING = 0.3;
+	private double MUTATION_RATE = 0.05;
+	private double MUTATION_DELTA = 0.2;
 
 	private int NUM_WEIGHTS = 5;
 
