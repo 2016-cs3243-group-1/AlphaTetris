@@ -1,7 +1,12 @@
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.logging.Logger;
 
 public class PlayerSkeleton {
 	private static double[] DEFAULT_WEIGHTS = {
@@ -123,7 +128,7 @@ public class PlayerSkeleton {
 		return results;
 	}
 
-	public double[] run(String[] args) {
+	public double[] run(double[] args) {
 		double[] results = new double[2];
 
 		// Init weights
@@ -133,7 +138,7 @@ public class PlayerSkeleton {
 			weights = new double[DEFAULT_WEIGHTS.length];
 			for(int i = 0; i < DEFAULT_WEIGHTS.length; i++) {
 				try {
-					weights[i] = Double.parseDouble(args[i]);
+					weights[i] = args[i];
 				} catch (NumberFormatException e) {
 					weights = DEFAULT_WEIGHTS;
 					break;
@@ -179,21 +184,15 @@ public class PlayerSkeleton {
 		// Prints the number of rows cleared and the turn number
 		System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
 
-
-
 		// DEBUG AREA
 		GeneticAlgorithm ga = new GeneticAlgorithm();
-		for (double weight : ga.generateWeights()) {
-			System.out.println(weight);
-		}
-
-
+//		for (double weight : ga.generateWeights()) {
+//			System.out.println(weight);
+//		}
+		ga.optimizeWeights(1);
+		System.out.println("end");
 		System.exit(0);
 	}
-}
-
-class GameWorker {
-
 }
 
 class GeneticAlgorithm {
@@ -207,14 +206,80 @@ class GeneticAlgorithm {
 
 	private int NUM_WEIGHTS = 5;
 
+	private static Logger LOGGER = Logger.getLogger("tetris");
+
+	ArrayList<double[]> population = seedPopulation();
+
 	public GeneticAlgorithm() {
 		BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(GAMES);
-		spawnWorkers();
+		// Concurrency not yet implemented
+		// spawnWorkers();
 		ArrayList<double[]> population = seedPopulation();
 	}
 
-	public void spawnWorkers() {
+	public void nextGeneration() {
 
+	}
+
+	public void spawnWorkers() {
+		for (int i = 0; i < WORKERS_POOL; i++) {
+			System.out.println("no idea what to do here :/");
+		}
+	}
+
+	public void optimizeWeights(int generations) {
+		// Concurrency not yet implemented
+		for (int i = 0; i < generations; i++) {
+			int totalRowsCleared = 0;
+
+			ArrayList<ArrayList<double[]>> ranks = new ArrayList<ArrayList<double[]>>();
+			for (int j = 0; j < POPULATION_SIZE; j++) {
+				ArrayList<double[]> rank = new ArrayList<double[]>();
+				PlayerSkeleton simulation = new PlayerSkeleton();
+
+				double[] simulationResults = simulation.run(population.get(j));
+//				double[] simulationResults = simulation.run(new double[]{
+//						-0.510066, // Aggregate column heights
+//						-0.184483, // Bumpiness
+//						0, // Max height
+//						-0.6, // Num of holes created
+//						0.760666 // Num of completed rows
+//				});
+
+				rank.add(simulationResults);
+				rank.add(population.get(j));
+				ranks.add(rank);
+			}
+
+			// Sort the results
+			ranks.sort(new Comparator<ArrayList<double[]>>() {
+				@Override
+				public int compare(ArrayList<double[]> o1, ArrayList<double[]> o2) {
+					return (int) (o2.get(0)[0] - o1.get(0)[0]);
+				}
+			});
+
+			printResults(ranks);
+		}
+	}
+
+	public void printResults(ArrayList<ArrayList<double[]>> ranks) {
+		for (ArrayList<double[]> indiv : ranks) {
+			for (double[] e : indiv) {
+				printArray(e);
+			}
+			System.out.println();
+		}
+	}
+
+	public void printArray(double[] array) {
+		for (int i = 0; i < array.length; i++) {
+			System.out.print(array[i] + " ");
+		}
+	}
+
+	public void report() {
+		LOGGER.info("stuff");
 	}
 
 	public ArrayList<double[]> seedPopulation() {
