@@ -253,13 +253,6 @@ class GeneticAlgorithm {
 				PlayerSkeleton simulation = new PlayerSkeleton();
 
 				double[] simulationResults = simulation.runAverage(population.get(j), GAMES);
-//				double[] simulationResults = simulation.run(new double[]{
-//						-0.510066, // Aggregate column heights
-//						-0.184483, // Bumpiness
-//						0, // Max height
-//						-0.6, // Num of holes created
-//						0.760666 // Num of completed rows
-//				});
 
 				rank.add(simulationResults);
 				rank.add(population.get(j));
@@ -270,7 +263,13 @@ class GeneticAlgorithm {
 			ranks.sort(new Comparator<ArrayList<double[]>>() {
 				@Override
 				public int compare(ArrayList<double[]> o1, ArrayList<double[]> o2) {
-					return (int) (o2.get(0)[0] - o1.get(0)[0]);
+					if (o2.get(0)[0] > o1.get(0)[0]) {
+						return 1;
+					} else if (o2.get(0)[0] < o1.get(0)[0]) {
+						return -1;
+					} else {
+						return 0;
+					}
 				}
 			});
 
