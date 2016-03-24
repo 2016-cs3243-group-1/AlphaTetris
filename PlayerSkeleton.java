@@ -228,7 +228,7 @@ class Agent implements Comparable<Agent> {
 
 	public void runSimulation() {
 		PlayerSkeleton ps = new PlayerSkeleton();
-		results = ps.runAverage(this.weights, numGames);
+		this.results = ps.runAverage(this.weights, numGames);
 	}
 
 	public double[] getWeights() {
@@ -237,6 +237,32 @@ class Agent implements Comparable<Agent> {
 
 	public double[] getResults() {
 		return this.results;
+	}
+
+	public void setWeights(double[] newWeights) {
+		this.weights = newWeights;
+	}
+
+	public void mutateOneWeight(int index, double modifier) {
+		this.weights[index] *= modifier;
+		normaliseWeights(this.weights);
+	}
+
+	private void normaliseWeights(double[] weights) {
+		// Modify the array in place
+		double sumWeights = 0;
+		for (int i = 0; i < weights.length; i++) {
+			sumWeights += Math.abs(weights[i]);
+		}
+		if (sumWeights > 0) {
+			for (int i = 0; i < weights.length; i++) {
+				weights[i] = (weights[i] / sumWeights);
+			}
+		} else {
+			for (int i = 0; i < weights.length; i++) {
+				weights[i] = 0.5;
+			}
+		}
 	}
 
 	@Override
@@ -404,7 +430,6 @@ class GeneticAlgorithm {
 	}
 
 	public void mutate() {
-
 	}
 
 	// ==============================================
