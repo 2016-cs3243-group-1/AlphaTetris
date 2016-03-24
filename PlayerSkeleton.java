@@ -128,6 +128,20 @@ public class PlayerSkeleton {
 		return results;
 	}
 
+	public double[] runAverage(double[] args, int numGames) {
+		double[] results = new double[2];
+
+		for (int i = 0; i < numGames; i++) {
+			double[] result = run(args);
+			results[0] += result[0];
+			results[1] += result[1];
+		}
+		results[0] = results[0] / numGames;
+		results[1] = results[1] / numGames;
+
+		return results;
+	}
+
 	public double[] run(double[] args) {
 		double[] results = new double[2];
 
@@ -155,6 +169,7 @@ public class PlayerSkeleton {
 		// Returns the number of rows cleared and the turn number in a tuple
 		results[0] = s.getRowsCleared();
 		results[1] = s.getTurnNumber();
+
 		return results;
 	}
 
@@ -196,9 +211,9 @@ public class PlayerSkeleton {
 }
 
 class GeneticAlgorithm {
-	private int WORKERS_POOL = 8;
-	private int POPULATION_SIZE = 500;
-	private int GAMES = 10;
+	private int WORKERS_POOL = 8; // threading stuff
+	private int POPULATION_SIZE = 500; // number of agents
+	private int GAMES = 10; // number of games each agent plays
 	private double SELECTION = 0.1;
 	private double CULLING = 0.1;
 	private double MUTATION_RATE = 0.1;
@@ -237,7 +252,7 @@ class GeneticAlgorithm {
 				ArrayList<double[]> rank = new ArrayList<double[]>();
 				PlayerSkeleton simulation = new PlayerSkeleton();
 
-				double[] simulationResults = simulation.run(population.get(j));
+				double[] simulationResults = simulation.runAverage(population.get(j), GAMES);
 //				double[] simulationResults = simulation.run(new double[]{
 //						-0.510066, // Aggregate column heights
 //						-0.184483, // Bumpiness
