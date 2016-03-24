@@ -216,6 +216,42 @@ public class PlayerSkeleton {
 	}
 }
 
+class Agent {
+	private double[] weights;
+	private double[] results;
+	private int numGames;
+
+	public Agent(double[] populationWeights, int numGames) {
+		this.weights = populationWeights;
+		this.numGames = numGames;
+	}
+
+	public void runSimulation() {
+		PlayerSkeleton ps = new PlayerSkeleton();
+		results = ps.runAverage(this.weights, numGames);
+	}
+
+	public double[] getWeights() {
+		return this.weights;
+	}
+
+	public double[] getResults() {
+		return this.results;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder s = new StringBuilder();
+		for (double d : results) {
+			s.append(d + " ");
+		}
+		for (double d : weights) {
+			s.append(d + " ");
+		}
+		return s.toString();
+	}
+}
+
 class GeneticAlgorithm {
 
 	// ==============================================
@@ -253,25 +289,31 @@ class GeneticAlgorithm {
 		for (int i = 0; i < generations; i++) {
 			int totalRowsCleared = 0;
 
-			ArrayList<ArrayList<double[]>> ranks = new ArrayList<ArrayList<double[]>>();
+//			ArrayList<ArrayList<double[]>> ranks = new ArrayList<ArrayList<double[]>>();
+//			for (int j = 0; j < POPULATION_SIZE; j++) {
+//				ArrayList<double[]> rank = new ArrayList<double[]>();
+//				PlayerSkeleton simulation = new PlayerSkeleton();
+//
+//				double[] simulationResults = simulation.runAverage(population.get(j), GAMES);
+//
+//				rank.add(simulationResults);
+//				rank.add(population.get(j));
+//				ranks.add(rank);
+//			}
+
+			ArrayList<Agent> ranks = new ArrayList<Agent>();
 			for (int j = 0; j < POPULATION_SIZE; j++) {
-				ArrayList<double[]> rank = new ArrayList<double[]>();
-				PlayerSkeleton simulation = new PlayerSkeleton();
-
-				double[] simulationResults = simulation.runAverage(population.get(j), GAMES);
-
-				rank.add(simulationResults);
-				rank.add(population.get(j));
-				ranks.add(rank);
+				Agent agent = new Agent(population.get(j), GAMES);
+				agent.runSimulation();
+				ranks.add(agent);
 			}
 
-			// Sort the results
-			ranks.sort(new Comparator<ArrayList<double[]>>() {
+			ranks.sort(new Comparator<Agent>() {
 				@Override
-				public int compare(ArrayList<double[]> o1, ArrayList<double[]> o2) {
-					if (o2.get(0)[0] > o1.get(0)[0]) {
+				public int compare(Agent o1, Agent o2) {
+					if (o2.getResults()[0] > o1.getResults()[0]) {
 						return 1;
-					} else if (o2.get(0)[0] < o1.get(0)[0]) {
+					} else if (o2.getResults()[0] < o1.getResults()[0]) {
 						return -1;
 					} else {
 						return 0;
@@ -279,7 +321,23 @@ class GeneticAlgorithm {
 				}
 			});
 
-			printResults(ranks);
+			printAgents(ranks);
+
+			// Sort the results
+//			ranks.sort(new Comparator<ArrayList<double[]>>() {
+//				@Override
+//				public int compare(ArrayList<double[]> o1, ArrayList<double[]> o2) {
+//					if (o2.get(0)[0] > o1.get(0)[0]) {
+//						return 1;
+//					} else if (o2.get(0)[0] < o1.get(0)[0]) {
+//						return -1;
+//					} else {
+//						return 0;
+//					}
+//				}
+//			});
+
+//			printResults(ranks);
 		}
 	}
 
@@ -326,9 +384,9 @@ class GeneticAlgorithm {
 		return weights;
 	}
 
-	// ==============================================
-	// Biology related functions
-	// ==============================================
+	// ====================================================
+	// Biology related functions (aka eugenics huehuehue)
+	// ====================================================
 	public void nextGeneration(ArrayList<ArrayList<double[]>> ranks) {
 		// Select the last 10 percentile and replace them
 		int numCulled = (int) CULLING * POPULATION_SIZE;
@@ -339,7 +397,12 @@ class GeneticAlgorithm {
 				e.printStackTrace(); // by right this shouldn't happen, but just to be safe
 			}
 		}
+	}
 
+	public ArrayList<double[]> createOffspring() {
+//		parents = selectParents();
+
+		return null;
 	}
 
 	public void selectParents() {
@@ -354,13 +417,16 @@ class GeneticAlgorithm {
 
 	}
 
-	public ArrayList<double[]> createOffspring() {
-		return null;
-	}
-
 	// ==============================================
 	// Debug methods
 	// ==============================================
+	public void printAgents(ArrayList<Agent> agents) {
+		for (Agent a : agents) {
+			System.out.print(a);
+			System.out.println();
+		}
+	}
+
 	public void printResults(ArrayList<ArrayList<double[]>> ranks) {
 		for (ArrayList<double[]> indiv : ranks) {
 			for (double[] e : indiv) {
