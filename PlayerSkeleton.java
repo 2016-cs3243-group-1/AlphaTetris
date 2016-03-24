@@ -308,15 +308,23 @@ class GeneticAlgorithm {
 				ranks.add(agent);
 			}
 
+			// Sort them in increasing order number of rows cleared
+			// Number of turns survived is used as a tiebreaker
 			ranks.sort(new Comparator<Agent>() {
 				@Override
 				public int compare(Agent o1, Agent o2) {
 					if (o2.getResults()[0] > o1.getResults()[0]) {
-						return 1;
-					} else if (o2.getResults()[0] < o1.getResults()[0]) {
 						return -1;
+					} else if (o2.getResults()[0] < o1.getResults()[0]) {
+						return 1;
 					} else {
-						return 0;
+						if (o2.getResults()[1] > o1.getResults()[1]) {
+							return -1;
+						} else if (o2.getResults()[1] < o1.getResults()[1]){
+							return 1;
+						} else {
+							return 0;
+						}
 					}
 				}
 			});
