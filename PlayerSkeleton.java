@@ -372,7 +372,7 @@ class GeneticAlgorithm {
 		return normaliseWeights(populationWeights);
 	}
 
-	public double randRange(int lower, int upper) {
+	public double randRange(double lower, double upper) {
 		Random random = new Random();
 		double result = random.nextDouble() * (upper - lower) + lower;
 		return result;
@@ -466,7 +466,7 @@ class GeneticAlgorithm {
 	public void mutate(Agent offspring) {
 		Random random = new Random();
 		int weightIndex = random.nextInt(offspring.getWeights().length);
-		double mutationModifier = 1 + random.nextDouble()*2*(MUTATION_DELTA) + (-MUTATION_DELTA); // [-0.2, 0.2)
+		double mutationModifier = 1 + randRange(MUTATION_DELTA, -MUTATION_DELTA);
 		offspring.mutateOneWeight(weightIndex, mutationModifier);
 	}
 
