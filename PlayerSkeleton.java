@@ -1,7 +1,5 @@
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -210,7 +208,7 @@ public class PlayerSkeleton {
 //		for (double weight : ga.generateWeights()) {
 //			System.out.println(weight);
 //		}
-		ga.optimizeWeights(1);
+		ga.optimizeWeights(5);
 		System.out.println("end");
 		System.exit(0);
 	}
@@ -305,7 +303,7 @@ class GeneticAlgorithm {
 	private int WORKERS_POOL = 8; // threading stuff
 	private int POPULATION_SIZE = 500; // number of agents
 	private int GAMES = 10; // number of games each agent plays
-	private double SELECTION = 0.1;
+	private double SELECTION = 0.1; // this value is not used though?
 	private double CULLING = 0.3;
 	private double MUTATION_RATE = 0.05;
 	private double MUTATION_DELTA = 0.2;
@@ -329,22 +327,11 @@ class GeneticAlgorithm {
 	// ==============================================
 	// Driver methods
 	// ==============================================
+	// The point of entry for GeneticAlgorithm
 	public void optimizeWeights(int generations) {
 		// Concurrency not yet implemented
 		for (int i = 0; i < generations; i++) {
 			int totalRowsCleared = 0;
-
-//			ArrayList<ArrayList<double[]>> ranks = new ArrayList<ArrayList<double[]>>();
-//			for (int j = 0; j < POPULATION_SIZE; j++) {
-//				ArrayList<double[]> rank = new ArrayList<double[]>();
-//				PlayerSkeleton simulation = new PlayerSkeleton();
-//
-//				double[] simulationResults = simulation.runAverage(population.get(j), GAMES);
-//
-//				rank.add(simulationResults);
-//				rank.add(population.get(j));
-//				ranks.add(rank);
-//			}
 
 			ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
 			for (int j = 0; j < POPULATION_SIZE; j++) {
@@ -352,8 +339,12 @@ class GeneticAlgorithm {
 				agent.runSimulation();
 				agentPopulation.add(agent);
 			}
+
 			Collections.sort(agentPopulation);
 			printAgents(agentPopulation);
+
+			// TODO: log the results somewhere
+			nextGeneration(agentPopulation);
 		}
 	}
 
@@ -377,6 +368,7 @@ class GeneticAlgorithm {
 		Random random = new Random();
 		double[] populationWeights = new double[NUM_WEIGHTS];
 		for (int i = 0; i < NUM_WEIGHTS; i++) {
+			// TODO: check this weight generation method
 			populationWeights[i] = RANGE_MIN + (RANGE_MAX - RANGE_MIN) * random.nextDouble();
 		}
 		return normaliseWeights(populationWeights);
@@ -403,33 +395,75 @@ class GeneticAlgorithm {
 	// ====================================================
 	// Biology related functions (aka eugenics huehuehue)
 	// ====================================================
-	public void nextGeneration(ArrayList<ArrayList<double[]>> ranks) {
+	public void nextGeneration(ArrayList<Agent> agentPopulation) {
 		// Select the last 10 percentile and replace them
 		int numCulled = (int) CULLING * POPULATION_SIZE;
 		for (int i = 0; i < numCulled; i++) {
 			try {
-				ranks.set(i, createOffspring());
+				// Replace the the ith agent with a new agent
+				agentPopulation.set(i, createOffspring(agentPopulation));
 			} catch (Exception e) {
 				e.printStackTrace(); // by right this shouldn't happen, but just to be safe
 			}
 		}
 	}
 
-	public ArrayList<double[]> createOffspring() {
-//		parents = selectParents();
-
-		return null;
+	public Agent createOffspring(ArrayList<Agent> agentPopulation) {
+		Random random = new Random();
+		ArrayList<Agent> parents = selectParents(agentPopulation);
+		Agent offspring = crossover(parents);
+		if (random.nextDouble() < MUTATION_RATE) {
+			mutate(offspring);
+		}
+		return offspring;
 	}
 
-	public void selectParents() {
+	// Method can be improved
+	// Right now, the parents are kind of selected randomly, probability is not proportionate to their fitness
+	// Returns 2 agents
+	public ArrayList<Agent> selectParents(ArrayList<Agent> agentPopulation) {
+		ArrayList<Agent> parents = new ArrayList<Agent>();
+		Random random = new Random();
+		ArrayList<Integer> randomIndexes = new ArrayList<Integer>();
+		for (int i = 0; i < (int) POPULATION_SIZE * 0.1; i++) {
+			randomIndexes.add(random.nextInt(POPULATION_SIZE + 1));
+		}
+		Collections.sort(randomIndexes);
 
+		// Get the last 2 indexes from randomIndexes
+		Agent p1 = agentPopulation.get(randomIndexes.get(randomIndexes.size()-1));
+		Agent p2 = agentPopulation.get(randomIndexes.get(randomIndexes.size()-2));;
+
+		parents.add(p1);
+		parents.add(p2);
+		return parents;
 	}
 
-	public void crossover() {
+	// TODO: please see if there's anything wrong with doing crossover like this
+	// Modified this from Alex's code
+	// Number of rows cleared is a proxy for fitness
+	public Agent crossover(ArrayList<Agent> parents) {
+		Agent p1 = parents.get(0);
+		Agent p2 = parents.get(1);
 
+		double fitness1 = p1.getResults()[0];
+		double fitness2 = p2.getResults()[0];
+
+		double inheritFromP1 = fitness1 / (fitness1 + fitness2);
+		double inheritFromP2 = fitness2 / (fitness1 + fitness2);
+
+		double[] offspringWeights = new double[NUM_WEIGHTS];
+		for (int i = 0; i < NUM_WEIGHTS; i++) {
+			offspringWeights[i] = inheritFromP1 * p1.getWeights()[i] + inheritFromP2 * p2.getWeights()[i];
+		}
+		return new Agent(offspringWeights, GAMES);
 	}
 
-	public void mutate() {
+	public void mutate(Agent offspring) {
+		Random random = new Random();
+		int weightIndex = random.nextInt(offspring.getWeights().length);
+		double mutationModifier = 1 + random.nextDouble()*2*(MUTATION_DELTA) + (-MUTATION_DELTA); // [-0.2, 0.2)
+		offspring.mutateOneWeight(weightIndex, mutationModifier);
 	}
 
 	// ==============================================
