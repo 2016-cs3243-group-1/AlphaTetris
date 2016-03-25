@@ -365,13 +365,17 @@ class GeneticAlgorithm {
 	public double[] generateWeights() {
 		int RANGE_MIN = -1;
 		int RANGE_MAX = 1;
-		Random random = new Random();
 		double[] populationWeights = new double[NUM_WEIGHTS];
 		for (int i = 0; i < NUM_WEIGHTS; i++) {
-			// TODO: check this weight generation method
-			populationWeights[i] = RANGE_MIN + (RANGE_MAX - RANGE_MIN) * random.nextDouble();
+			populationWeights[i] = randRange(RANGE_MIN, RANGE_MAX);
 		}
 		return normaliseWeights(populationWeights);
+	}
+
+	public double randRange(int lower, int upper) {
+		Random random = new Random();
+		double result = random.nextDouble() * (upper - lower) + lower;
+		return result;
 	}
 
 	public double[] normaliseWeights(double[] weights) {
