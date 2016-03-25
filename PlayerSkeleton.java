@@ -362,20 +362,28 @@ class GeneticAlgorithm {
 		return populations;
 	}
 
+
 	public double[] generateWeights() {
-		int RANGE_MIN = -1;
-		int RANGE_MAX = 1;
 		double[] populationWeights = new double[NUM_WEIGHTS];
-		for (int i = 0; i < NUM_WEIGHTS; i++) {
-			populationWeights[i] = randRange(RANGE_MIN, RANGE_MAX);
-		}
+
+		// Modified so that the weight generation is a smarter
+		// e.g. aggregate column heights should never be +ve
+		populationWeights[0] = randRange(-1, 0);
+		populationWeights[1] = randRange(-1, 0);
+		populationWeights[2] = randRange(-1, 0);
+		populationWeights[3] = randRange(-1, 0);
+		populationWeights[4] = randRange(0, 1);
+
+//		for (int i = 0; i < NUM_WEIGHTS; i++) {
+//			populationWeights[i] = randRange(-1, 1);
+//		}
+
 		return normaliseWeights(populationWeights);
 	}
 
 	public double randRange(double lower, double upper) {
 		Random random = new Random();
-		double result = random.nextDouble() * (upper - lower) + lower;
-		return result;
+		return random.nextDouble() * (upper - lower) + lower;
 	}
 
 	public double[] normaliseWeights(double[] weights) {
