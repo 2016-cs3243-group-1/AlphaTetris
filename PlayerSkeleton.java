@@ -5,6 +5,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class PlayerSkeleton {
@@ -208,7 +209,7 @@ public class PlayerSkeleton {
 //		for (double weight : ga.generateWeights()) {
 //			System.out.println(weight);
 //		}
-		ga.optimizeWeights(5);
+		ga.optimizeWeights(2);
 		System.out.println("end");
 		System.exit(0);
 	}
@@ -235,6 +236,14 @@ class Agent implements Comparable<Agent> {
 
 	public double[] getResults() {
 		return this.results;
+	}
+
+	public String getResultsString() {
+		StringBuilder sb = new StringBuilder();
+		for (double d : this.results) {
+			sb.append(d + " ");
+		}
+		return sb.toString();
 	}
 
 	public void setWeights(double[] newWeights) {
@@ -310,7 +319,7 @@ class GeneticAlgorithm {
 
 	private int NUM_WEIGHTS = 5;
 
-	private static Logger LOGGER = Logger.getLogger("tetris");
+	private static Logger logger;
 
 	ArrayList<double[]> population = seedPopulation();
 
@@ -322,6 +331,7 @@ class GeneticAlgorithm {
 		// Concurrency not yet implemented
 		// spawnWorkers();
 		ArrayList<double[]> population = seedPopulation();
+		logger = Logger.getLogger("GeneticAlgorithm");
 	}
 
 	// ==============================================
@@ -343,7 +353,11 @@ class GeneticAlgorithm {
 			Collections.sort(agentPopulation);
 			printAgents(agentPopulation);
 
-			// TODO: log the results somewhere
+			logger.log(Level.INFO, "Generation " + i);
+			logger.log(Level.INFO, "Top 5 results");
+			for (int j = POPULATION_SIZE-1; j > POPULATION_SIZE-6; j--) {
+				logger.log(Level.INFO, agentPopulation.get(j).getResultsString());
+			}
 			nextGeneration(agentPopulation);
 		}
 	}
@@ -501,10 +515,6 @@ class GeneticAlgorithm {
 		for (int i = 0; i < array.length; i++) {
 			System.out.print(array[i] + " ");
 		}
-	}
-
-	public void report() {
-		LOGGER.info("stuff");
 	}
 }
 
