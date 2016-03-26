@@ -250,7 +250,7 @@ public class PlayerSkeleton {
 	
 	public static int[] run(double[] weights, boolean showResults, int maxTurns) {
         State s = new State();
-        while(!s.hasLost() && (maxTurns == 0 || maxTurns >= s.getTurnNumber())) {
+        while(!s.hasLost() && (maxTurns == 0 || maxTurns > s.getTurnNumber())) {
             s.makeMove(PlayerSkeleton.pickMove(s,s.legalMoves(), weights));
         }
         // Prints the number of rows cleared and the turn number
@@ -308,11 +308,11 @@ class Agent implements Comparable<Agent> {
 		return this.weights;
 	}
 
-	public double getRowsCompleted() {
+	public int getRowsCompleted() {
 		return this.rowsCompleted;
 	}
 	
-	public double getTurnsPlayed() {
+	public int getTurnsPlayed() {
 	    return this.turnsPlayed;
 	}
 	
@@ -418,6 +418,7 @@ class GeneticAlgorithm {
 	private int POPULATION_SIZE = 500; // number of agents
 	private int GAMES = 20; // number of games each agent plays
 	private int MAX_TURNS = 1000;
+	private double DEEPEN = 0.1; // if average rows cleared is within % of top score
 	private double SELECTION = 0.1; // for tournament selection
 	private double CULLING = 0.3;
 	private double MUTATION_RATE = 0.05;
@@ -476,13 +477,13 @@ class GeneticAlgorithm {
 	public void report(int gen) {
 	    StringBuilder sb = new StringBuilder();
 	    //printAgents(population);
-        sb.append("Generation ");
+        sb.append("\nGeneration ");
         sb.append(Integer.toString(gen));
-        sb.append("\n");
-        sb.append("Top Result:\n");
+        sb.append(", Search Depth: ");
+        sb.append(MAX_TURNS);
+        sb.append(" turns\nTop Result:\n");
         sb.append(population.get(population.size() - 1));
-        sb.append("\n");
-        sb.append("Top 4 runner ups\n");
+        sb.append("\nTop 4 runner ups\n");
         for (int j = POPULATION_SIZE-2; j > POPULATION_SIZE-6; j--) {
             sb.append(population.get(j).getResultsString());
             sb.append("\n");
@@ -491,7 +492,16 @@ class GeneticAlgorithm {
         sb.append(generationTotalRowsCleared / (GAMES * population.size()));
         sb.append(", Total Games Played: ");
         sb.append(GAMES * population.size());
+        sb.append("\n");
         logger.log(Level.INFO, sb.toString());
+	}
+	
+	public void deepenSearch() {
+	    float averageRowsCleared = generationTotalRowsCleared / (GAMES * population.size());
+	    float topAverageRowsCleared = population.get(population.size() - 1).getRowsCompleted() / GAMES;
+	    if (((topAverageRowsCleared - averageRowsCleared) / topAverageRowsCleared) <  DEEPEN) {
+	        MAX_TURNS *= 2;
+	    }
 	}
 	
 	// The point of entry for GeneticAlgorithm
@@ -501,6 +511,7 @@ class GeneticAlgorithm {
 		    runGames();
 			Collections.sort(population);
 			report(i);
+			deepenSearch();
 			nextGeneration();
 		}
 		pool.shutdown();
