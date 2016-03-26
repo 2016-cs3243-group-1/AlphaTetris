@@ -4,104 +4,155 @@ import subprocess
 import sys
 import random
 import signal
-import operator
-from math import floor
-from multiprocessing import Pool
+import logging
+import time
+import threading
+from collections import Counter
+from fractions import Fraction
 
-# have to keep the rungame process in a method outside the class due to how multiprocessing pool works
-def runGame(weights):
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+# python 2.x/3.x specific checks
+try:
+    from Queue import Queue
+except ImportError:
+    from queue import Queue
 
-    command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE)
-    numRowsCleared, numTurns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
-    return (int(numRowsCleared), numTurns)
+try:
+    xrange
+except NameError:
+    xrange = range
+
+class GameWorker(threading.Thread):
+    """
+    Worker class for handling the calling of the java tetris game.
+    Consumes work from the queue when available and returns
+    the result through a callback method.
+    """
+
+    def __init__(self, lock, game_queue, running, callback):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.lock = lock
+        self.game_queue = game_queue
+        self.running = running
+        self.callback = callback
+
+    def _run_game(self, weights):
+        command = ["java", "PlayerSkeleton"] + [str(x) for x in weights]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE)
+        rows_cleared, turns = process.stdout.read().decode("utf-8").strip("\r\n").split(" ")
+        return int(rows_cleared)
+
+    def run(self):
+        while self.running.is_set():
+            idx, weights = self.game_queue.get()
+            rows_cleared = self._run_game(weights)
+            with self.lock:
+                self.callback(idx, rows_cleared)
+            self.game_queue.task_done()
 
 class AlphaTetris():
     """Genetic Algorithm to optimise weights for heuristics in PlayerSkeleton.java"""
 
-    pool_size = 4
-    defaultWeights = [
-        -0.510066, # Aggregate column heights
-        -0.184483, # Bumpiness
-        0, # Max height
-        -0.6, # Num of holes created
-        0.760666 # Num of completed rows
-    ]
+    workers_pool = 8 #threads
+    population_size = 500 # number of agents
+    games = 10 # no of games per agent
+    selection = 0.1 # random pool size to select best parents from
+    culling = 0.3 # % of population to cull and replace every generation
+    mutation_rate = 0.05 # mutation rate
+    mutation_delta = 0.2 # % range of mutation adjustment
+
+    num_weights = 5
+
+    logging.basicConfig(filename='%s.log' % time.ctime().replace(" ","_").replace(":","-"), level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler())
 
     def __init__(self):
-        self.pool = Pool(AlphaTetris.pool_size)
-        self.populationCount = 32    # Must be even
-        self.mutationRate = 0.05    # [0, 1]
-        self.generation = 1
-        self.start([AlphaTetris.defaultWeights] + [self.generateWeights(AlphaTetris.pool_size) for i in range(self.populationCount - 1)])
+        self.queue = Queue()
+        self.running = threading.Event()
+        self.lock = threading.Lock()
+        self.workers = []
+        self._spawn_workers()
+        self.population = self._seed_population()
 
-    def start(self, populationWeights):
-        print("Generation", self.generation)
+    def _worker_callback(self, idx, rows_cleared):
+        self._results[idx] += rows_cleared
+        self._total_rows_cleared += rows_cleared
 
-        choices = []
-        pool = Pool(self.pool_size)
+    def _spawn_workers(self):
+        """spawns the threaded worker class instances"""
+        self.running.set()
+        for x in xrange(self.workers_pool):
+            worker = GameWorker(self.lock, self.queue, self.running, self._worker_callback)
+            worker.start()
+            self.workers.append(worker)
 
-        try:
-            scores = pool.map(runGame, populationWeights)
-        except KeyboardInterrupt as ki:
-            pool.join()
-            pool.terminate()
-        else:
-            for (numRowsCleared, numTurns), weights in zip(scores, populationWeights):
-                print("Weights used:", weights)
-                print("Rows cleared:", numRowsCleared, "Number of turns:", numTurns)
-                choices.append((weights, numRowsCleared))
+    def _queue_games(self, population):
+        """puts the work into the queue for the worker instances to consume"""
+        [map(self.queue.put, enumerate(population)) for game in xrange(self.games)]
 
-            parents = self.selectParents(choices)
-            self.crossover(parents)
-            self.mutate(parents)
+    def _normalize(self, weights):
+        """normalize values to 1. if all weights are 0 return 0.5 (for crossover average weighted fitness)"""
+        sum_weights = sum(map(abs, weights))
+        return map(lambda w: sum_weights > 0 and (float(w) / sum_weights) or 0.5, weights)
 
-            self.generation += 1
-            self.start(parents)
+    def _generate_weights(self):
+        """generates a random vector of length num_weights that sums to 1.0"""
+        weights = [random.uniform(-1, 1) for x in xrange(self.num_weights)]
+        return self._normalize(weights)
 
-    #### Initial population
-    def generateWeights(self, seed):
-        return [self.generateWeight(i) for i in AlphaTetris.defaultWeights]
+    def _seed_population(self):
+        """generates the initial population"""
+        return [self._generate_weights() for x in xrange(self.population_size)]
 
-    def generateWeight(self, origin):
-        return origin + random.uniform(-0.1, 0.1)
+    def _select_parents(self):
+        """tournament selection"""
+        random_selection = random.sample(xrange(self.population_size), int(self.population_size * 0.1))
+        return sorted(random_selection, key=self._results.get, reverse=True)[:2]
 
+    def _crossover(self, parent1, parent2):
+        """average weighted crossover"""
+        fitness1, fitness2 = self._normalize([self._results[parent1], self._results[parent2]]) 
+        return [(fitness1 * p1) + (fitness2 * p2) for p1, p2 in zip(self.population[parent1], self.population[parent2])]
 
+    def _mutate(self, offspring):
+        """mutate randomly selected weight by delta and normalize"""
+        weight_idx = random.choice(xrange(len(offspring)))
+        mutation_modifier = 1 + random.uniform(-self.mutation_delta, self.mutation_delta)
+        offspring[weight_idx] *= mutation_modifier
+        return self._normalize(offspring)
 
-    #### Selection
-    def selectParents(self, choices):
-        return [self.selectParent(choices) for i in range(self.populationCount)]
+    def _create_offspring(self):
+        """create an offspring using tournament selection and average weighted crossover"""
+        parents = self._select_parents()
+        offspring = self._crossover(*parents)
+        if (random.uniform(0, 1) < self.mutation_rate):
+            self._mutate(offspring)
+        return offspring
+        
+    def _next_generation(self, ranks):
+        """cull the weakest population and replace them with new offspring"""
+        replace = ranks[:int(self.population_size * self.culling)]
+        for idx in replace:
+            self.population[idx] = self._create_offspring()
 
-    def selectParent(self, choices):
-        total = sum(score for weights, score in choices)
-        randomVar = random.uniform(0, total)
-        currentSum = 0
+    def _report(self, ranks):
+        top5 = ranks[self.population_size-5:]
+        for idx in top5[::-1]:
+            logging.info("Average Rows Cleared: %.1f, Weights: %s" % (self._results[idx] / float(self.games), self.population[idx]))
+        logging.info("Population Average Rows Cleared: %.1f" % (self._total_rows_cleared / float(self.population_size * self.games)))
 
-        for weights, score in choices:
-            if currentSum + score >= randomVar:
-                return weights
-            currentSum += score
+    def optimize_weights(self, generations):
+        for gen in xrange(generations):
+            logging.info(" Generation: %s" % gen)
+            self._results = Counter()
+            self._total_rows_cleared = 0
+            self._queue_games(self.population)
+            self.queue.join()
 
-        assert False, "Shouldn't get here"
-
-    #### Crossover
-    def crossover(self, parents):
-        for i in range(0, self.populationCount, 2):
-            crosspoint = random.randint(0, len(AlphaTetris.defaultWeights) - 1)
-            temp = parents[i][:crosspoint]
-            parents[i][:crosspoint] = parents[i+1][:crosspoint]
-            parents[i+1][:crosspoint] = temp
-
-
-    #### Mutation
-    def mutate(self, parents):
-        for parent in parents:
-            if random.uniform(0, 1) < self.mutationRate:
-                mutation_target = random.randint(0, len(AlphaTetris.defaultWeights) - 1)
-                parent[mutation_target] = self.generateWeight(parent[mutation_target])
-
-
+            ranks = sorted(xrange(self.population_size), key=self._results.get)
+            self._report(ranks)
+            self._next_generation(ranks)
 
 if __name__ == '__main__':
-	AlphaTetris()
+    ap = AlphaTetris()
+    ap.optimize_weights(100) 
