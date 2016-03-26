@@ -399,7 +399,6 @@ class GameTask implements Callable<int[]> {
         this.index = index;
         this.weights = agent.getWeights();
         this.maxTurns = maxTurns;
-        agent.reset();
     }
 
     @Override
@@ -450,6 +449,8 @@ class GeneticAlgorithm {
         int gamesCompleted = 0;
         for (int i = 0; i < GAMES; i++) {
             for (int j = 0; j < population.size(); j++) {
+                Agent agent = population.get(j);
+                agent.reset();
                 completionService.submit(new GameTask(j, population.get(j), MAX_TURNS));
             }
         }
@@ -493,6 +494,7 @@ class GeneticAlgorithm {
         sb.append(", Total Games Played: ");
         sb.append(GAMES * population.size());
         sb.append("\n");
+        System.out.println();
         logger.log(Level.INFO, sb.toString());
     }
 
