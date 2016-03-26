@@ -248,9 +248,9 @@ public class PlayerSkeleton {
         return depth;
     }
 	
-	public static int[] run(double[] weights, boolean showResults) {
+	public static int[] run(double[] weights, boolean showResults, int maxTurns) {
         State s = new State();
-        while(!s.hasLost()) {
+        while(!s.hasLost() && (maxTurns == 0 || maxTurns >= s.getTurnNumber())) {
             s.makeMove(PlayerSkeleton.pickMove(s,s.legalMoves(), weights));
         }
         // Prints the number of rows cleared and the turn number
@@ -261,7 +261,7 @@ public class PlayerSkeleton {
 	}
 	
 	public static void run() {
-	    run(PlayerSkeleton.DEFAULT_WEIGHTS, true);
+	    run(PlayerSkeleton.DEFAULT_WEIGHTS, true, 0);
 	}
 
 	// ==============================================
@@ -361,7 +361,7 @@ class Agent implements Comparable<Agent> {
 	public String toString() {
 		StringBuilder s = new StringBuilder();
 		s.append(getResultsString());
-		s.append(" ");
+		s.append("\n");
 		for (double d : weights) {
 			s.append(d);
 			s.append(" ");
@@ -393,16 +393,18 @@ class GameTask implements Callable<int[]> {
     
     int index;
     double[] weights;
+    int maxTurns;
     
-    public GameTask(int index, Agent agent) {
+    public GameTask(int index, Agent agent, int maxTurns) {
         this.index = index;
         this.weights = agent.getWeights();
+        this.maxTurns = maxTurns;
         agent.reset();
     }
 
     @Override
     public int[] call() throws Exception {
-        int[] results = PlayerSkeleton.run(weights, false);
+        int[] results = PlayerSkeleton.run(weights, false, maxTurns);
         return new int[] { index, results[0], results[1] };
     }
 }
@@ -415,6 +417,7 @@ class GeneticAlgorithm {
 	private int WORKERS_POOL =  Runtime.getRuntime().availableProcessors(); // threading stuff
 	private int POPULATION_SIZE = 500; // number of agents
 	private int GAMES = 20; // number of games each agent plays
+	private int MAX_TURNS = 1000;
 	private double SELECTION = 0.1; // for tournament selection
 	private double CULLING = 0.3;
 	private double MUTATION_RATE = 0.05;
@@ -442,9 +445,12 @@ class GeneticAlgorithm {
     // Driver methods
     // ==============================================
 	public void runGames() {
+	    int totalGames = GAMES * population.size();
+	    int gamesCompleted = 0;
+	    int gamesPerPercent = (int) (totalGames / 100);
 	    for (int i = 0; i < GAMES; i++) {
 	        for (int j = 0; j < population.size(); j++) {
-	            completionService.submit(new GameTask(j, population.get(j)));
+	            completionService.submit(new GameTask(j, population.get(j), MAX_TURNS));
 	        }
 	    }
 	    for (int i = 0; i < (GAMES * population.size()); i++){
@@ -452,6 +458,10 @@ class GeneticAlgorithm {
                 int[] result = completionService.take().get();
                 population.get(result[0]).updateScore(result[1], result[2]);
                 generationTotalRowsCleared += result[1];
+                gamesCompleted ++;
+                if(gamesCompleted % gamesPerPercent == 0) {
+                    System.out.printf("Currently processing %s of %s games.\r", gamesCompleted, totalGames);
+                }
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
@@ -464,8 +474,11 @@ class GeneticAlgorithm {
         sb.append("Generation ");
         sb.append(Integer.toString(gen));
         sb.append("\n");
-        sb.append("Top 5 results\n");
-        for (int j = POPULATION_SIZE-1; j > POPULATION_SIZE-6; j--) {
+        sb.append("Top Result:\n");
+        sb.append(population.get(population.size() - 1));
+        sb.append("\n");
+        sb.append("Top 4 runner ups\n");
+        for (int j = POPULATION_SIZE-2; j > POPULATION_SIZE-6; j--) {
             sb.append(population.get(j).getResultsString());
             sb.append("\n");
         }
