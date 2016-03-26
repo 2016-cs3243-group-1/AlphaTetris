@@ -1,14 +1,17 @@
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class PlayerSkeleton {
+    
 	private static double[] DEFAULT_WEIGHTS = {
 		-0.510066, // Aggregate column heights
 		-0.184483, // Bumpiness
@@ -16,10 +19,9 @@ public class PlayerSkeleton {
 		-0.6, // Num of holes created
 		0.760666 // Num of completed rows
 	};
-	private static double[] weights;
 
 	//implement this function to have a working system
-	public int pickMove(State s, int[][] legalMoves) {
+	public static int pickMove(State s, int[][] legalMoves, double[] weights) {
 		int move = 0;
 		double max = -Double.MAX_VALUE;
 		for(int i = 0; i < legalMoves.length; i++) {
@@ -40,7 +42,7 @@ public class PlayerSkeleton {
 		return move;
 	}
 
-	public int[] scoreMove(State s, int orient, int slot) throws Exception {
+	public static int[] scoreMove(State s, int orient, int slot) throws Exception {
 		int[] results = new int[5];
 
 		int[][] field = s.getField();
@@ -127,122 +129,93 @@ public class PlayerSkeleton {
 		}
 		return results;
 	}
-
-	// ==========================================================
-	// Methods that GeneticAlgorithm calls from PlayerSkeleton
-	// ==========================================================
-	public double[] runAverage(double[] args, int numGames) {
-		double[] results = new double[2];
-
-		for (int i = 0; i < numGames; i++) {
-			double[] result = run(args);
-			results[0] += result[0];
-			results[1] += result[1];
-		}
-		results[0] = results[0] / numGames;
-		results[1] = results[1] / numGames;
-
-		return results;
+	
+	public static int[] run(double[] weights, boolean showResults) {
+        State s = new State();
+        while(!s.hasLost()) {
+            s.makeMove(PlayerSkeleton.pickMove(s,s.legalMoves(), weights));
+        }
+        // Prints the number of rows cleared and the turn number
+        if (showResults) {
+            System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
+        }
+        return new int [] { s.getRowsCleared(), s.getTurnNumber() };
 	}
-
-	public double[] run(double[] args) {
-		double[] results = new double[2];
-
-		// Init weights
-		if (args.length != DEFAULT_WEIGHTS.length) {
-			weights = DEFAULT_WEIGHTS;
-		} else {
-			weights = new double[DEFAULT_WEIGHTS.length];
-			for(int i = 0; i < DEFAULT_WEIGHTS.length; i++) {
-				try {
-					weights[i] = args[i];
-				} catch (NumberFormatException e) {
-					weights = DEFAULT_WEIGHTS;
-					break;
-				}
-			}
-		}
-
-		State s = new State();
-		PlayerSkeleton p = new PlayerSkeleton();
-		while(!s.hasLost()) {
-			s.makeMove(p.pickMove(s,s.legalMoves()));
-		}
-
-		// Returns the number of rows cleared and the turn number in a tuple
-		results[0] = s.getRowsCleared();
-		results[1] = s.getTurnNumber();
-
-		return results;
+	
+	public static void run() {
+	    run(PlayerSkeleton.DEFAULT_WEIGHTS, true);
 	}
 
 	// ==============================================
 	// Modified main method
 	// ==============================================
 	public static void main(String[] args) {
-		// Init weights
-		if (args.length != DEFAULT_WEIGHTS.length) {
-			weights = DEFAULT_WEIGHTS;
+		if(args.length >= 2 && args[0].equals("optimize")) {
+            // Run genetic algorithm
+		    try {
+                GeneticAlgorithm ga = new GeneticAlgorithm();
+                int generations = Integer.parseInt(args[1]);
+                ga.optimizeWeights(generations);
+                System.out.println("end");
+                System.exit(0);
+		    } catch (NumberFormatException e) {
+		        System.out.println("argument has to be an integer!");
+		    }
 		} else {
-			weights = new double[DEFAULT_WEIGHTS.length];
-			for(int i = 0; i < DEFAULT_WEIGHTS.length; i++) {
-				try {
-					weights[i] = Double.parseDouble(args[i]);
-				} catch (NumberFormatException e) {
-					weights = DEFAULT_WEIGHTS;
-					break;
-				}
-			}
+		    // run game
+		    PlayerSkeleton.run();
 		}
-
-		State s = new State();
-		PlayerSkeleton p = new PlayerSkeleton();
-		while(!s.hasLost()) {
-			s.makeMove(p.pickMove(s,s.legalMoves()));
-		}
-
-		// Prints the number of rows cleared and the turn number
-		System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
-
-		// DEBUG AREA
-		GeneticAlgorithm ga = new GeneticAlgorithm();
-//		for (double weight : ga.generateWeights()) {
-//			System.out.println(weight);
-//		}
-		ga.optimizeWeights(2);
-		System.out.println("end");
-		System.exit(0);
 	}
 }
 
 class Agent implements Comparable<Agent> {
+    
 	private double[] weights;
-	private double[] results;
+	private int rowsCompleted;
+	private int turnsPlayed;
 	private int numGames;
 
-	public Agent(double[] populationWeights, int numGames) {
+	public Agent(double[] populationWeights) {
 		this.weights = populationWeights;
-		this.numGames = numGames;
+		reset();
 	}
-
-	public void runSimulation() {
-		PlayerSkeleton ps = new PlayerSkeleton();
-		this.results = ps.runAverage(this.weights, numGames);
-	}
+	
+	public void reset() {
+        this.rowsCompleted = 0;
+        this.turnsPlayed = 0;
+        this.numGames = 0;
+    }
 
 	public double[] getWeights() {
 		return this.weights;
 	}
 
-	public double[] getResults() {
-		return this.results;
+	public double getRowsCompleted() {
+		return this.rowsCompleted;
+	}
+	
+	public double getTurnsPlayed() {
+	    return this.turnsPlayed;
+	}
+	
+	public int gamesPlayed() {
+	    return this.numGames;
+	}
+	
+	public void updateScore(int rowsCompleted, int turnsPlayed) {
+	    this.rowsCompleted += rowsCompleted;
+	    this.turnsPlayed += turnsPlayed;
+	    numGames ++;
 	}
 
 	public String getResultsString() {
 		StringBuilder sb = new StringBuilder();
-		for (double d : this.results) {
-			sb.append(d + " ");
-		}
+		sb.append("Average Rows Completed: ");
+		sb.append(rowsCompleted / numGames);
+		sb.append(", Average Turns Played: ");
+		sb.append(turnsPlayed / numGames);
+        sb.append(", Num Games Played: ");
+        sb.append(numGames);
 		return sb.toString();
 	}
 
@@ -252,34 +225,28 @@ class Agent implements Comparable<Agent> {
 
 	public void mutateOneWeight(int index, double modifier) {
 		this.weights[index] *= modifier;
-		normaliseWeights(this.weights);
+		this.weights = normaliseWeights(this.weights);
 	}
 
-	private void normaliseWeights(double[] weights) {
-		// Modify the array in place
+	private double[] normaliseWeights(double[] weights) {
 		double sumWeights = 0;
 		for (int i = 0; i < weights.length; i++) {
 			sumWeights += Math.abs(weights[i]);
 		}
-		if (sumWeights > 0) {
-			for (int i = 0; i < weights.length; i++) {
-				weights[i] = (weights[i] / sumWeights);
-			}
-		} else {
-			for (int i = 0; i < weights.length; i++) {
-				weights[i] = 0.5;
-			}
+		for (int i = 0; i < weights.length; i++) {
+			weights[i] = (weights[i] / sumWeights);
 		}
+		return weights;
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();
-		for (double d : results) {
-			s.append(d + " ");
-		}
+		s.append(getResultsString());
+		s.append(" ");
 		for (double d : weights) {
-			s.append(d + " ");
+			s.append(d);
+			s.append(" ");
 		}
 		return s.toString();
 	}
@@ -288,14 +255,14 @@ class Agent implements Comparable<Agent> {
 	// Sorted in increasing order number of rows cleared
 	// Number of turns survived is used as a tiebreaker
 	public int compareTo(Agent o) {
-		if (o.getResults()[0] > this.getResults()[0]) {
+		if (o.getRowsCompleted() > this.getRowsCompleted()) {
 			return -1;
-		} else if (o.getResults()[0] < this.getResults()[0]) {
+		} else if (o.getRowsCompleted() < this.getRowsCompleted()) {
 			return 1;
 		} else {
-			if (o.getResults()[1] > this.getResults()[1]) {
+			if (o.getTurnsPlayed() > this.getTurnsPlayed()) {
 				return -1;
-			} else if (o.getResults()[1] < this.getResults()[1]) {
+			} else if (o.getTurnsPlayed() < this.getTurnsPlayed()) {
 				return 1;
 			} else {
 				return 0;
@@ -304,78 +271,112 @@ class Agent implements Comparable<Agent> {
 	}
 }
 
+class GameTask implements Callable<int[]> {
+    
+    int index;
+    double[] weights;
+    
+    public GameTask(int index, Agent agent) {
+        this.index = index;
+        this.weights = agent.getWeights();
+        agent.reset();
+    }
+
+    @Override
+    public int[] call() throws Exception {
+        int[] results = PlayerSkeleton.run(weights, false);
+        return new int[] { index, results[0], results[1] };
+    }
+}
+
 class GeneticAlgorithm {
 
 	// ==============================================
 	// Default values
 	// ==============================================
-	private int WORKERS_POOL = 8; // threading stuff
+	private int WORKERS_POOL =  Runtime.getRuntime().availableProcessors(); // threading stuff
 	private int POPULATION_SIZE = 500; // number of agents
-	private int GAMES = 10; // number of games each agent plays
-	private double SELECTION = 0.1; // this value is not used though?
+	private int GAMES = 20; // number of games each agent plays
+	private double SELECTION = 0.1; // for tournament selection
 	private double CULLING = 0.3;
 	private double MUTATION_RATE = 0.05;
 	private double MUTATION_DELTA = 0.2;
-
 	private int NUM_WEIGHTS = 5;
-
+	
+	private ArrayList<Agent> population;
+	private int generationTotalRowsCleared;
+	ExecutorService pool;
+	CompletionService<int[]> completionService;
+	
 	private static Logger logger;
-
-	ArrayList<double[]> population = seedPopulation();
 
 	// ==============================================
 	// Constructor
 	// ==============================================
 	public GeneticAlgorithm() {
-		BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(GAMES);
-		// Concurrency not yet implemented
-		// spawnWorkers();
-		ArrayList<double[]> population = seedPopulation();
+		population = seedPopulation();
+		pool = Executors.newFixedThreadPool(WORKERS_POOL);
+		completionService = new ExecutorCompletionService<int[]>(pool);
 		logger = Logger.getLogger("GeneticAlgorithm");
 	}
+	
+    // ==============================================
+    // Driver methods
+    // ==============================================
+	public void runGames() {
+	    for (int i = 0; i < GAMES; i++) {
+	        for (int j = 0; j < population.size(); j++) {
+	            completionService.submit(new GameTask(j, population.get(j)));
+	        }
+	    }
+	    for (int i = 0; i < (GAMES * population.size()); i++){
+	        try {
+                int[] result = completionService.take().get();
+                population.get(result[0]).updateScore(result[1], result[2]);
+                generationTotalRowsCleared += result[1];
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+    	}
+	}
 
-	// ==============================================
-	// Driver methods
-	// ==============================================
+	public void report(int gen) {
+	    StringBuilder sb = new StringBuilder();
+	    //printAgents(population);
+        sb.append("Generation ");
+        sb.append(Integer.toString(gen));
+        sb.append("\n");
+        sb.append("Top 5 results\n");
+        for (int j = POPULATION_SIZE-1; j > POPULATION_SIZE-6; j--) {
+            sb.append(population.get(j).getResultsString());
+            sb.append("\n");
+        }
+        sb.append("Population Average Rows Completed: ");
+        sb.append(generationTotalRowsCleared / (GAMES * population.size()));
+        sb.append(", Total Games Played: ");
+        sb.append(GAMES * population.size());
+        logger.log(Level.INFO, sb.toString());
+	}
+	
 	// The point of entry for GeneticAlgorithm
 	public void optimizeWeights(int generations) {
-		// Concurrency not yet implemented
 		for (int i = 0; i < generations; i++) {
-			int totalRowsCleared = 0;
-
-			ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
-			for (int j = 0; j < POPULATION_SIZE; j++) {
-				Agent agent = new Agent(population.get(j), GAMES);
-				agent.runSimulation();
-				agentPopulation.add(agent);
-			}
-
-			Collections.sort(agentPopulation);
-			printAgents(agentPopulation);
-
-			logger.log(Level.INFO, "Generation " + i);
-			logger.log(Level.INFO, "Top 5 results");
-			for (int j = POPULATION_SIZE-1; j > POPULATION_SIZE-6; j--) {
-				logger.log(Level.INFO, agentPopulation.get(j).getResultsString());
-			}
-			nextGeneration(agentPopulation);
+		    generationTotalRowsCleared = 0;
+		    runGames();
+			Collections.sort(population);
+			report(i);
+			nextGeneration();
 		}
+		pool.shutdown();
 	}
 
-	public void spawnWorkers() {
-		for (int i = 0; i < WORKERS_POOL; i++) {
-			System.out.println("no idea what to do here :/");
-		}
-	}
-
-	public ArrayList<double[]> seedPopulation() {
-		ArrayList<double[]> populations = new ArrayList<double[]>();
+	public ArrayList<Agent> seedPopulation() {
+	    ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
 		for (int i = 0; i < POPULATION_SIZE; i++) {
-			populations.add(generateWeights());
+		    agentPopulation.add(new Agent(generateWeights()));
 		}
-		return populations;
+		return agentPopulation;
 	}
-
 
 	public double[] generateWeights() {
 		double[] populationWeights = new double[NUM_WEIGHTS];
@@ -401,42 +402,35 @@ class GeneticAlgorithm {
 	}
 
 	public double[] normaliseWeights(double[] weights) {
-		// Modify the array in place then return it
 		double sumWeights = 0;
 		for (int i = 0; i < weights.length; i++) {
 			sumWeights += Math.abs(weights[i]);
 		}
-		if (sumWeights > 0) {
-			for (int i = 0; i < weights.length; i++) {
-				weights[i] = (weights[i] / sumWeights);
-			}
-		} else {
-			for (int i = 0; i < weights.length; i++) {
-				weights[i] = 0.5;
-			}
+		for (int i = 0; i < weights.length; i++) {
+			weights[i] = (weights[i] / sumWeights);
 		}
 		return weights;
 	}
 
 	// ====================================================
-	// Biology related functions (aka eugenics huehuehue)
+	// Biology related functions (aka eugenics huehuehue) (>huehuehue i will end you)
 	// ====================================================
-	public void nextGeneration(ArrayList<Agent> agentPopulation) {
+	public void nextGeneration() {
 		// Select the last 10 percentile and replace them
-		int numCulled = (int) CULLING * POPULATION_SIZE;
+		int numCulled = (int) (CULLING * POPULATION_SIZE);
 		for (int i = 0; i < numCulled; i++) {
 			try {
 				// Replace the the ith agent with a new agent
-				agentPopulation.set(i, createOffspring(agentPopulation));
+				population.set(i, createOffspring());
 			} catch (Exception e) {
 				e.printStackTrace(); // by right this shouldn't happen, but just to be safe
 			}
 		}
 	}
 
-	public Agent createOffspring(ArrayList<Agent> agentPopulation) {
+	public Agent createOffspring() {
 		Random random = new Random();
-		ArrayList<Agent> parents = selectParents(agentPopulation);
+		ArrayList<Agent> parents = selectParents(population);
 		Agent offspring = crossover(parents);
 		if (random.nextDouble() < MUTATION_RATE) {
 			mutate(offspring);
@@ -444,45 +438,42 @@ class GeneticAlgorithm {
 		return offspring;
 	}
 
-	// Method can be improved
-	// Right now, the parents are kind of selected randomly, probability is not proportionate to their fitness
-	// Returns 2 agents
+	// Returns top 2 agents from randomly selected pool (tournament selection)
+	// TODO: randomly selected pool may contain duplicates, implement proper subset selection
 	public ArrayList<Agent> selectParents(ArrayList<Agent> agentPopulation) {
 		ArrayList<Agent> parents = new ArrayList<Agent>();
 		Random random = new Random();
-		ArrayList<Integer> randomIndexes = new ArrayList<Integer>();
-		for (int i = 0; i < (int) POPULATION_SIZE * 0.1; i++) {
-			randomIndexes.add(random.nextInt(POPULATION_SIZE + 1));
+		ArrayList<Agent> randomAgents = new ArrayList<Agent>();
+		for (int i = 0; i < (int) (POPULATION_SIZE * SELECTION); i++) {
+			randomAgents.add(population.get(random.nextInt(POPULATION_SIZE)));
 		}
-		Collections.sort(randomIndexes);
+		Collections.sort(randomAgents);
 
 		// Get the last 2 indexes from randomIndexes
-		Agent p1 = agentPopulation.get(randomIndexes.get(randomIndexes.size()-1));
-		Agent p2 = agentPopulation.get(randomIndexes.get(randomIndexes.size()-2));;
+		Agent p1 = randomAgents.get(randomAgents.size()-1);
+		Agent p2 = randomAgents.get(randomAgents.size()-2);
 
 		parents.add(p1);
 		parents.add(p2);
 		return parents;
 	}
 
-	// TODO: please see if there's anything wrong with doing crossover like this
-	// Modified this from Alex's code
 	// Number of rows cleared is a proxy for fitness
 	public Agent crossover(ArrayList<Agent> parents) {
 		Agent p1 = parents.get(0);
 		Agent p2 = parents.get(1);
 
-		double fitness1 = p1.getResults()[0];
-		double fitness2 = p2.getResults()[0];
+		double fitness1 = p1.getTurnsPlayed();
+		double fitness2 = p2.getTurnsPlayed();
 
 		double inheritFromP1 = fitness1 / (fitness1 + fitness2);
 		double inheritFromP2 = fitness2 / (fitness1 + fitness2);
 
 		double[] offspringWeights = new double[NUM_WEIGHTS];
 		for (int i = 0; i < NUM_WEIGHTS; i++) {
-			offspringWeights[i] = inheritFromP1 * p1.getWeights()[i] + inheritFromP2 * p2.getWeights()[i];
+			offspringWeights[i] = (inheritFromP1 * p1.getWeights()[i]) + (inheritFromP2 * p2.getWeights()[i]);
 		}
-		return new Agent(offspringWeights, GAMES);
+		return new Agent(normaliseWeights(offspringWeights));
 	}
 
 	public void mutate(Agent offspring) {
