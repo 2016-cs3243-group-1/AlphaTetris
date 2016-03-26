@@ -447,21 +447,26 @@ class GeneticAlgorithm {
 	public void runGames() {
 	    int totalGames = GAMES * population.size();
 	    int gamesCompleted = 0;
-	    int gamesPerPercent = (int) (totalGames / 100);
 	    for (int i = 0; i < GAMES; i++) {
 	        for (int j = 0; j < population.size(); j++) {
 	            completionService.submit(new GameTask(j, population.get(j), MAX_TURNS));
 	        }
 	    }
+	    long startTime = System.currentTimeMillis();
+	    long stopTime;
+	    long averageTimePerGame;
+	    float timeRemaining;
 	    for (int i = 0; i < (GAMES * population.size()); i++){
 	        try {
                 int[] result = completionService.take().get();
                 population.get(result[0]).updateScore(result[1], result[2]);
                 generationTotalRowsCleared += result[1];
                 gamesCompleted ++;
-                if(gamesCompleted % gamesPerPercent == 0) {
-                    System.out.printf("Currently processing %s of %s games.\r", gamesCompleted, totalGames);
-                }
+                stopTime = System.currentTimeMillis();
+                averageTimePerGame = (stopTime - startTime) / gamesCompleted;
+                timeRemaining = (float) ((averageTimePerGame * (totalGames - gamesCompleted)) / 1000) / 60;
+                System.out.printf("Currently processing %s of %s games. Estimated Time Remaining: %.2f Minutes.\r", 
+                        gamesCompleted, totalGames, timeRemaining); 
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
