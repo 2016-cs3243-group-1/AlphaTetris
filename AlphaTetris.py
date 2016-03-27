@@ -90,19 +90,19 @@ class AlphaTetris():
         """puts the work into the queue for the worker instances to consume"""
         [map(self.queue.put, enumerate(population)) for game in xrange(self.games)]
 
-    def _normalize(self, weights):
-        """normalize values to 1. if all weights are 0 return 0.5 (for crossover average weighted fitness)"""
-        sum_weights = sum(map(abs, weights))
-        return map(lambda w: sum_weights > 0 and (float(w) / sum_weights) or 0.5, weights)
+    # def _normalize(self, weights):
+    #     """normalize values to 1. if all weights are 0 return 0.5 (for crossover average weighted fitness)"""
+    #     sum_weights = sum(map(abs, weights))
+    #     return map(lambda w: sum_weights > 0 and (float(w) / sum_weights) or 0.5, weights)
 
-    def _generate_weights(self):
-        """generates a random vector of length num_weights that sums to 1.0"""
-        weights = [random.uniform(-1, 1) for x in xrange(self.num_weights)]
-        return self._normalize(weights)
+    # def _generate_weights(self):
+    #     """generates a random vector of length num_weights that sums to 1.0"""
+    #     weights = [random.uniform(-1, 1) for x in xrange(self.num_weights)]
+    #     return self._normalize(weights)
 
-    def _seed_population(self):
-        """generates the initial population"""
-        return [self._generate_weights() for x in xrange(self.population_size)]
+    # def _seed_population(self):
+    #     """generates the initial population"""
+    #     return [self._generate_weights() for x in xrange(self.population_size)]
 
     def _select_parents(self):
         """tournament selection"""
