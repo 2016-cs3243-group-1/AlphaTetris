@@ -414,7 +414,7 @@ class GeneticAlgorithm {
     // Default values
     // ==============================================
     private int WORKERS_POOL =  Runtime.getRuntime().availableProcessors(); // threading stuff
-    private int POPULATION_SIZE = 500; // number of agents
+    private int POPULATION_SIZE = 100; // number of agents
     private int GAMES = 20; // number of games each agent plays
     private int MAX_TURNS = 1000;
     private double DEEPEN = 0.1; // if average rows cleared is within % of top score
