@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
@@ -7,19 +8,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.logging.*;
 
 public class PlayerSkeleton {
 
-    private static double[] DEFAULT_WEIGHTS = {
-            -1.8500868, // land height
-            1.760666,   // row clear
-            -1.1653277, // row breaks
-            -4.1061407, // column breaks
-            -0.6,       // hole_idx
-            -2.4075407, // depth_idx
-            -1.0,       // pile_height
+    public static double[] DEFAULT_WEIGHTS = {
+            -0.11889029514812746,   // land height
+            0.17617469347875242,    // row clear
+            -0.07049774628211491,   // row breaks
+            -0.2284616211183528,    // column breaks
+            -0.2624911582307603,    // hole_idx
+            -0.09943344141832017,   // depth_idx
+            -0.04405104432357203    // pile_height
     };
 
     public static int WEIGHTS_LENGTH = DEFAULT_WEIGHTS.length;
@@ -250,12 +250,20 @@ public class PlayerSkeleton {
 
     public static int[] run(double[] weights, boolean showResults, int maxTurns) {
         State s = new State();
+        new TFrame(s);
         while(!s.hasLost() && (maxTurns == 0 || maxTurns > s.getTurnNumber())) {
             s.makeMove(PlayerSkeleton.pickMove(s,s.legalMoves(), weights));
+            s.draw();
+            s.drawNext(0,0);
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
         // Prints the number of rows cleared and the turn number
         if (showResults) {
-            System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
+            System.out.println("You have completed "+s.getRowsCleared()+" rows.");
         }
         return new int [] { s.getRowsCleared(), s.getTurnNumber() };
     }
@@ -268,12 +276,14 @@ public class PlayerSkeleton {
     // Modified main method
     // ==============================================
     public static void main(String[] args) {
+        // java PlayerSkeleton optimize <NUMBER OF GENERATIONS> <STARTING MAX TURNS>
         if(args.length >= 2 && args[0].equals("optimize")) {
             // Run genetic algorithm
             try {
                 GeneticAlgorithm ga = new GeneticAlgorithm();
                 int generations = Integer.parseInt(args[1]);
-                ga.optimizeWeights(generations);
+                int maxTurns = Integer.parseInt(args[2]);
+                ga.optimizeWeights(generations, maxTurns);
                 System.out.println("end");
                 System.exit(0);
             } catch (NumberFormatException e) {
@@ -364,8 +374,9 @@ class Agent implements Comparable<Agent> {
         s.append("\n");
         for (double d : weights) {
             s.append(d);
-            s.append(" ");
+            s.append(", ");
         }
+        s.append("\n");
         return s.toString();
     }
 
@@ -414,7 +425,7 @@ class GeneticAlgorithm {
     // Default values
     // ==============================================
     private int WORKERS_POOL =  Runtime.getRuntime().availableProcessors(); // threading stuff
-    private int POPULATION_SIZE = 500; // number of agents
+    private int POPULATION_SIZE = 100; // number of agents
     private int GAMES = 20; // number of games each agent plays
     private int MAX_TURNS = 1000;
     private double DEEPEN = 0.1; // if average rows cleared is within % of top score
@@ -425,7 +436,7 @@ class GeneticAlgorithm {
     private int NUM_WEIGHTS = PlayerSkeleton.WEIGHTS_LENGTH;
 
     private ArrayList<Agent> population;
-    private int generationTotalRowsCleared;
+    private long generationTotalRowsCleared;
     ExecutorService pool;
     CompletionService<int[]> completionService;
 
@@ -439,6 +450,20 @@ class GeneticAlgorithm {
         pool = Executors.newFixedThreadPool(WORKERS_POOL);
         completionService = new ExecutorCompletionService<int[]>(pool);
         logger = Logger.getLogger("GeneticAlgorithm");
+        logger.setUseParentHandlers(false);
+
+        FileHandler fh;
+
+        try {
+            fh = new FileHandler("output.log");
+            logger.addHandler(fh);
+            SimpleFormatter formatter = new SimpleFormatter();
+            fh.setFormatter(formatter);
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     // ==============================================
@@ -467,8 +492,8 @@ class GeneticAlgorithm {
                 stopTime = System.currentTimeMillis();
                 averageTimePerGame = (stopTime - startTime) / gamesCompleted;
                 timeRemaining = (float) ((averageTimePerGame * (totalGames - gamesCompleted)) / 1000) / 60;
-                System.out.printf("Currently processing %s of %s games. Estimated Time Remaining: %.2f Minutes.\r", 
-                        gamesCompleted, totalGames, timeRemaining); 
+//                System.out.printf("Currently processing %s of %s games. Estimated Time Remaining: %.2f Minutes.\r",
+//                        gamesCompleted, totalGames, timeRemaining);
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
@@ -477,13 +502,14 @@ class GeneticAlgorithm {
 
     public void report(int gen) {
         StringBuilder sb = new StringBuilder();
-        //printAgents(population);
         sb.append("\nGeneration ");
         sb.append(Integer.toString(gen));
         sb.append(", Search Depth: ");
         sb.append(MAX_TURNS);
-        sb.append(" turns\nTop Result:\n");
-        sb.append(population.get(population.size() - 1));
+        sb.append(" turns\nTop 10 Results:\n");
+        for (int i = 1; i <= 5; i++) {
+            sb.append(population.get(population.size() - i));
+        }
         sb.append("\nTop 4 runner ups\n");
         for (int j = POPULATION_SIZE-2; j > POPULATION_SIZE-6; j--) {
             sb.append(population.get(j).getResultsString());
@@ -494,8 +520,7 @@ class GeneticAlgorithm {
         sb.append(", Total Games Played: ");
         sb.append(GAMES * population.size());
         sb.append("\n");
-        System.out.println();
-        logger.log(Level.INFO, sb.toString());
+        logger.info(sb.toString());
     }
 
     public void deepenSearch() {
@@ -507,8 +532,10 @@ class GeneticAlgorithm {
     }
 
     // The point of entry for GeneticAlgorithm
-    public void optimizeWeights(int generations) {
-        for (int i = 0; i < generations; i++) {
+    public void optimizeWeights(int generations, int maxTurns) {
+        MAX_TURNS = maxTurns;
+        logger.info("Running genetic algorithm with " + generations + " generations and " + maxTurns + " starting max turns");
+        for (int i = 1; i <= generations; i++) {
             generationTotalRowsCleared = 0;
             runGames();
             Collections.sort(population);
@@ -520,10 +547,27 @@ class GeneticAlgorithm {
     }
 
     public ArrayList<Agent> seedPopulation() {
-        ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
-        for (int i = 0; i < POPULATION_SIZE; i++) {
+        ArrayList<Agent> agentPopulation = new ArrayList<Agent>(POPULATION_SIZE);
+        double[][] presetPopulationWeights = { // Defines the weights of agents in the initial population
+//                {-0.10461710553782902, 0.1636787909859012, -0.07762865196546648, -0.24290354224274174, -0.23672018475759599, -0.10996400562919922, -0.06448771888126632},
+//                {-0.11741727538659695, 0.18517925976192556, -0.06514716576913131, -0.225153790321674, -0.2796538696383896, -0.09259548149778675, -0.03485315762449593},
+//                {-0.11883381275308547, 0.18032482985192158, -0.0683131042859156, -0.22771843084331625, -0.255099842371379, -0.10194603505980349, -0.04776394483457872},
+//                {-0.11466481619868854, 0.17906903795497178, -0.07335909488648606, -0.2289938236986478, -0.26241137434208617, -0.09796617248777267, -0.043535680431346965},
+//                {-0.1199958257271216, 0.1593630545379815, -0.07328409786606721, -0.2339853931325515, -0.275737750051736, -0.0998922389491572, -0.03774163973538498}
+        };
+        int numRepetitions = 10; // Number of agents for each set of pre-defined weights
+
+        for (double[] weights : presetPopulationWeights) {
+            for (int i = 0; i < numRepetitions; i++) {
+                agentPopulation.add(new Agent(weights));
+            }
+        }
+
+        for (int i = 0; i < POPULATION_SIZE - numRepetitions * presetPopulationWeights.length; i++) {
             agentPopulation.add(new Agent(generateWeights()));
         }
+
+        assert agentPopulation.size() == POPULATION_SIZE;
         return agentPopulation;
     }
 
@@ -590,7 +634,6 @@ class GeneticAlgorithm {
     }
 
     // Returns top 2 agents from randomly selected pool (tournament selection)
-    // TODO: randomly selected pool may contain duplicates, implement proper subset selection
     public ArrayList<Agent> selectParents(ArrayList<Agent> agentPopulation) {
         ArrayList<Agent> parents = new ArrayList<Agent>();
         Random random = new Random();
