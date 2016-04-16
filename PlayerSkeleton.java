@@ -520,10 +520,27 @@ class GeneticAlgorithm {
     }
 
     public ArrayList<Agent> seedPopulation() {
-        ArrayList<Agent> agentPopulation = new ArrayList<Agent>();
-        for (int i = 0; i < POPULATION_SIZE; i++) {
+        ArrayList<Agent> agentPopulation = new ArrayList<Agent>(POPULATION_SIZE);
+        double[][] presetPopulationWeights = { // Defines the weights of agents in the initial population
+//                {-0.10461710553782902, 0.1636787909859012, -0.07762865196546648, -0.24290354224274174, -0.23672018475759599, -0.10996400562919922, -0.06448771888126632},
+//                {-0.11741727538659695, 0.18517925976192556, -0.06514716576913131, -0.225153790321674, -0.2796538696383896, -0.09259548149778675, -0.03485315762449593},
+//                {-0.11883381275308547, 0.18032482985192158, -0.0683131042859156, -0.22771843084331625, -0.255099842371379, -0.10194603505980349, -0.04776394483457872},
+//                {-0.11466481619868854, 0.17906903795497178, -0.07335909488648606, -0.2289938236986478, -0.26241137434208617, -0.09796617248777267, -0.043535680431346965},
+//                {-0.1199958257271216, 0.1593630545379815, -0.07328409786606721, -0.2339853931325515, -0.275737750051736, -0.0998922389491572, -0.03774163973538498}
+        };
+        int numRepetitions = 10; // Number of agents for each set of pre-defined weights
+
+        for (double[] weights : presetPopulationWeights) {
+            for (int i = 0; i < numRepetitions; i++) {
+                agentPopulation.add(new Agent(weights));
+            }
+        }
+
+        for (int i = 0; i < POPULATION_SIZE - numRepetitions * presetPopulationWeights.length; i++) {
             agentPopulation.add(new Agent(generateWeights()));
         }
+
+        assert agentPopulation.size() == POPULATION_SIZE;
         return agentPopulation;
     }
 
