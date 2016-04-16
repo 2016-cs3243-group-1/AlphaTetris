@@ -250,12 +250,20 @@ public class PlayerSkeleton {
 
     public static int[] run(double[] weights, boolean showResults, int maxTurns) {
         State s = new State();
+        new TFrame(s);
         while(!s.hasLost() && (maxTurns == 0 || maxTurns > s.getTurnNumber())) {
             s.makeMove(PlayerSkeleton.pickMove(s,s.legalMoves(), weights));
+            s.draw();
+            s.drawNext(0,0);
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
         // Prints the number of rows cleared and the turn number
         if (showResults) {
-            System.out.println(s.getRowsCleared() + " " + s.getTurnNumber());
+            System.out.println("You have completed "+s.getRowsCleared()+" rows.");
         }
         return new int [] { s.getRowsCleared(), s.getTurnNumber() };
     }
