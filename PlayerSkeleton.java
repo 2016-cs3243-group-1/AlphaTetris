@@ -12,14 +12,14 @@ import java.util.logging.Logger;
 
 public class PlayerSkeleton {
 
-    private static double[] DEFAULT_WEIGHTS = {
-            -1.8500868, // land height
-            1.760666,   // row clear
-            -1.1653277, // row breaks
-            -4.1061407, // column breaks
-            -0.6,       // hole_idx
-            -2.4075407, // depth_idx
-            -1.0,       // pile_height
+    public static double[] DEFAULT_WEIGHTS = {
+            -0.11889029514812746,   // land height
+            0.17617469347875242,    // row clear
+            -0.07049774628211491,   // row breaks
+            -0.2284616211183528,    // column breaks
+            -0.2624911582307603,    // hole_idx
+            -0.09943344141832017,   // depth_idx
+            -0.04405104432357203    // pile_height
     };
 
     public static int WEIGHTS_LENGTH = DEFAULT_WEIGHTS.length;
