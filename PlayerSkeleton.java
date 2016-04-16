@@ -425,7 +425,7 @@ class GeneticAlgorithm {
     private int NUM_WEIGHTS = PlayerSkeleton.WEIGHTS_LENGTH;
 
     private ArrayList<Agent> population;
-    private int generationTotalRowsCleared;
+    private long generationTotalRowsCleared;
     ExecutorService pool;
     CompletionService<int[]> completionService;
 
